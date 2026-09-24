@@ -1,0 +1,62 @@
+{
+  "greenhouse": [
+    {
+      "company": "Stripe",
+      "board": "https://boards.greenhouse.io/stripe"
+    }
+  ],
+  "ashby": [
+    {
+      "company": "Ashby",
+      "board": "https://jobs.ashbyhq.com/ashby"
+    }
+  ],
+  "lever": [
+    {
+      "company": "Spotify",
+      "board": "https://jobs.lever.co/spotify",
+      "region": "us"
+    }
+  ],
+  "weworkremotely": {
+    "enabled": true,
+    "feed": "https://weworkremotely.com/categories/remote-programming-jobs.rss"
+  },
+  "remotive": {
+    "enabled": true,
+    "endpoint": "https://remotive.com/api/remote-jobs?category=software-dev"
+  },
+  "remoteok": {
+    "enabled": true,
+    "endpoint": "https://remoteok.com/api?tag=dev"
+  },
+  "jobicy": {
+    "enabled": true,
+    "feed": "https://jobicy.com/jobs/feed?industry=engineering"
+  },
+  "himalayas": {
+    "enabled": true,
+    "endpoint": "https://himalayas.app/jobs/api",
+    "pages": 5,
+    "pageSize": 20
+  },
+  "jooble": {
+    "enabled": true,
+    "queries": [
+      "AI engineer",
+      "AI developer",
+      "Bubble.io developer",
+      "software developer",
+      "software engineer",
+      "AI agent developer",
+      "automation engineer",
+      "programmer"
+    ],
+    "locations": [
+      "",
+      "Remote"
+    ],
+    "pages": 1
+  },
+  "pollIntervalMinutes": 10
+}
