@@ -1,19 +1,77 @@
 import { canonicalizeUrl } from "./shared.mjs"
 
+const NON_REMOTE_WORKPLACE_PATTERNS = Object.freeze([
+  /\bhybrid\b/i,
+  /\bon[\s-]?site\b/i,
+  /\bin[\s-]?office\b/i,
+  /\boffice[\s-]?based\b/i,
+  /\b(?:mostly|partly|partially)\s+remote\b/i,
+  /\bremote\s+(?:option|eligible|possible)\b/i,
+  /\bworksite\s*:\s*(?:hybrid|on[\s-]?site)/i,
+  /\b(?:Hybrid|On[\s-]?site)(?=[A-Z])/,
+])
+
 const SOURCE_PRIORITY = Object.freeze({
   greenhouse: 1,
   ashby: 1,
   lever: 1,
+  smartrecruiters: 1,
+  workable: 1,
+  personio: 1,
   weworkremotely: 2,
   remotive: 2,
   remoteok: 2,
   jobicy: 2,
   himalayas: 2,
+  arbeitnow: 2,
+  arbeitnowuk: 2,
+  themuse: 2,
+  jobtech: 2,
+  eures: 2,
+  ayla: 2,
+  nomado24: 3,
   jooble: 2,
 })
 
 export function jobIdentity(job) {
   return `${job.source}:${job.sourceJobId}`
+}
+
+export function isRemoteOnlyJob(job) {
+  if (job.isRemote !== true) {
+    return false
+  }
+
+  const workplaceText = [job.title, job.location, job.description]
+    .filter(Boolean)
+    .join(" ")
+
+  return !NON_REMOTE_WORKPLACE_PATTERNS.some((pattern) =>
+    pattern.test(workplaceText),
+  )
+}
+
+function normalizeFingerprintPart(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}+#]+/gu, " ")
+    .trim()
+}
+
+export function jobFingerprint(job) {
+  const title = normalizeFingerprintPart(job.title)
+  const company = normalizeFingerprintPart(job.company)
+
+  if (!title || !company) {
+    return ""
+  }
+
+  return [
+    title,
+    company,
+    normalizeFingerprintPart(job.location),
+  ].join("|")
 }
 
 export function deduplicateJobs(jobs) {
@@ -24,11 +82,13 @@ export function deduplicateJobs(jobs) {
   )
   const seenIdentities = new Set()
   const seenUrls = new Set()
+  const seenFingerprints = new Set()
   const uniqueJobs = []
 
   for (const job of orderedJobs) {
     const identity = jobIdentity(job)
     const canonicalUrl = canonicalizeUrl(job.url)
+    const fingerprint = jobFingerprint(job)
 
     if (
       !job.source ||
@@ -36,13 +96,17 @@ export function deduplicateJobs(jobs) {
       !job.title ||
       !canonicalUrl ||
       seenIdentities.has(identity) ||
-      seenUrls.has(canonicalUrl)
+      seenUrls.has(canonicalUrl) ||
+      (fingerprint && seenFingerprints.has(fingerprint))
     ) {
       continue
     }
 
     seenIdentities.add(identity)
     seenUrls.add(canonicalUrl)
+    if (fingerprint) {
+      seenFingerprints.add(fingerprint)
+    }
     uniqueJobs.push({
       ...job,
       url: canonicalUrl,

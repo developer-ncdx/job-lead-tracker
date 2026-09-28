@@ -9,7 +9,14 @@ export async function loadSourceConfig(
   const contents = await readFile(absolutePath, "utf8")
   const config = JSON.parse(contents)
 
-  for (const source of ["greenhouse", "ashby", "lever"]) {
+  for (const source of [
+    "greenhouse",
+    "ashby",
+    "lever",
+    "smartrecruiters",
+    "workable",
+    "personio",
+  ]) {
     if (!Array.isArray(config[source])) {
       throw new Error(
         `${path.basename(absolutePath)} must define a \`${source}\` array.`,

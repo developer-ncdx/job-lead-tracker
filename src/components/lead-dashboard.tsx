@@ -1,12 +1,14 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { Session, SupabaseClient } from "@supabase/supabase-js"
 import {
+  ArrowDownUp,
   BriefcaseBusiness,
   Cloud,
   CloudOff,
   LoaderCircle,
   LogOut,
   RefreshCw,
+  Star,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -15,13 +17,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import type {
-  Database,
-  JobLead,
-  JobLeadUpdate,
-} from "@/lib/database.types"
+import type { Database, JobLead } from "@/lib/database.types"
 import { getErrorMessage } from "@/lib/errors"
-import { useJobLeads } from "@/hooks/use-job-leads"
+import { formatPhilippineTime } from "@/lib/philippine-time"
+import {
+  sortJobLeadsByTimestamp,
+  useJobLeads,
+  type JobLeadSortOrder,
+} from "@/hooks/use-job-leads"
 
 type LeadDashboardProps = {
   client: SupabaseClient<Database>
@@ -45,14 +48,8 @@ type DashboardViewProps = {
   isPreview?: boolean
   onSignOut?: () => void | Promise<void>
   onRefresh: () => void | Promise<void>
-  onUpdate: (leadId: string, values: JobLeadUpdate) => Promise<void>
-  onDelete: (leadId: string) => Promise<void>
+  onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
 }
-
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-})
 
 const previewLeads: JobLead[] = [
   {
@@ -67,6 +64,7 @@ const previewLeads: JobLead[] = [
     company: "Example AI",
     location: "Remote — Worldwide",
     is_remote: true,
+    is_priority: true,
     source_timestamp_at: "2026-09-23T12:30:00.000Z",
     source_timestamp_kind: "published",
     first_seen_at: "2026-09-23T12:35:00.000Z",
@@ -86,6 +84,7 @@ const previewLeads: JobLead[] = [
     company: "Example Labs",
     location: "Manila, Philippines",
     is_remote: false,
+    is_priority: false,
     source_timestamp_at: "2026-09-23T09:15:00.000Z",
     source_timestamp_kind: "published",
     first_seen_at: "2026-09-23T09:20:00.000Z",
@@ -105,6 +104,7 @@ const previewLeads: JobLead[] = [
     company: "Example Systems",
     location: "Remote",
     is_remote: true,
+    is_priority: false,
     source_timestamp_at: "2026-09-22T16:45:00.000Z",
     source_timestamp_kind: "updated",
     first_seen_at: "2026-09-22T17:00:00.000Z",
@@ -127,9 +127,22 @@ function DashboardView({
   isPreview = false,
   onSignOut,
   onRefresh,
-  onUpdate,
-  onDelete,
+  onSetPriority,
 }: DashboardViewProps) {
+  const [sortOrder, setSortOrder] =
+    useState<JobLeadSortOrder>("newest")
+  const [activeView, setActiveView] = useState<"all" | "priority">("all")
+  const priorityCount = leads.filter((lead) => lead.is_priority).length
+  const sortedLeads = useMemo(
+    () =>
+      sortJobLeadsByTimestamp(
+        activeView === "priority"
+          ? leads.filter((lead) => lead.is_priority)
+          : leads,
+        sortOrder,
+      ),
+    [activeView, leads, sortOrder],
+  )
   const leadLabel = leads.length === 1 ? "1 lead" : `${leads.length} leads`
 
   return (
@@ -200,20 +213,81 @@ function DashboardView({
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#6f645b] sm:text-base">
               {isPreview
                 ? "Preview the workspace while Supabase is being connected."
-                : "Review opportunities collected in Supabase and keep their details current."}
+                : "Review opportunities collected in Supabase, sorted by their source date."}
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            className="w-fit bg-white shadow-sm"
-            onClick={() => void onRefresh()}
-            disabled={isPreview || isLoading || isRefreshing}
-          >
-            <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
-            {isRefreshing ? "Refreshing" : "Refresh"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              className="w-fit bg-white shadow-sm"
+              onClick={() =>
+                setSortOrder((current) =>
+                  current === "newest" ? "oldest" : "newest",
+                )
+              }
+              disabled={isLoading}
+              aria-label={`Sort by date: ${
+                sortOrder === "newest"
+                  ? "newest first"
+                  : "oldest first"
+              }`}
+            >
+              <ArrowDownUp />
+              {sortOrder === "newest" ? "Newest first" : "Oldest first"}
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-fit bg-white shadow-sm"
+              onClick={() => void onRefresh()}
+              disabled={isPreview || isLoading || isRefreshing}
+            >
+              <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+              {isRefreshing ? "Refreshing" : "Refresh"}
+            </Button>
+          </div>
         </section>
+
+        <div
+          className="mb-5 flex w-fit items-center rounded-xl bg-[#eae5dc] p-1"
+          role="tablist"
+          aria-label="Job lead views"
+        >
+          <Button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "all"}
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveView("all")}
+            className={
+              activeView === "all"
+                ? "bg-white text-[#302820] shadow-sm hover:bg-white"
+                : "text-muted-foreground"
+            }
+          >
+            All jobs
+            <span className="text-xs">{leads.length}</span>
+          </Button>
+          <Button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "priority"}
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveView("priority")}
+            className={
+              activeView === "priority"
+                ? "bg-white text-[#302820] shadow-sm hover:bg-white"
+                : "text-muted-foreground"
+            }
+          >
+            <Star className={activeView === "priority" ? "fill-current" : ""} />
+            Priority
+            <span className="text-xs">{priorityCount}</span>
+          </Button>
+        </div>
 
         <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
@@ -235,7 +309,9 @@ function DashboardView({
           {lastSyncedAt && (
             <>
               <Separator orientation="vertical" className="h-3" />
-              <span>Last checked {timeFormatter.format(lastSyncedAt)}</span>
+              <span>
+                Last checked {formatPhilippineTime(lastSyncedAt)}
+              </span>
             </>
           )}
         </div>
@@ -244,7 +320,7 @@ function DashboardView({
           <Alert className="mb-5 border-amber-200 bg-amber-50/80 text-amber-950">
             <CloudOff className="text-amber-700" />
             <AlertDescription className="text-amber-900/75">
-              You can explore the interface now. Editing, deleting, refreshing,
+              You can explore the interface now. Prioritizing, refreshing,
               and live sync will become available after Supabase is connected.
             </AlertDescription>
           </Alert>
@@ -260,19 +336,19 @@ function DashboardView({
         )}
 
         <JobLeadList
-          leads={leads}
+          leads={sortedLeads}
           isLoading={isLoading}
           error={error}
           onRetry={onRefresh}
-          onUpdate={onUpdate}
-          onDelete={onDelete}
+          onSetPriority={onSetPriority}
+          priorityOnly={activeView === "priority"}
           readOnly={isPreview}
         />
       </main>
 
       <footer className="relative mx-auto max-w-5xl px-4 py-8 text-center text-xs text-muted-foreground sm:px-6">
         {isPreview
-          ? "Connect Supabase to load, edit, and sync real job leads."
+          ? "Connect Supabase to load and sync real job leads."
           : "Leads are created externally and appear here through Realtime."}
       </footer>
     </div>
@@ -289,8 +365,7 @@ export function LeadDashboard({ client, session }: LeadDashboardProps) {
     realtimeWarning,
     lastSyncedAt,
     refresh,
-    updateLead,
-    deleteLead,
+    setPriority,
   } = useJobLeads(client, session.user.id)
 
   async function handleSignOut() {
@@ -324,8 +399,7 @@ export function LeadDashboard({ client, session }: LeadDashboardProps) {
       isSigningOut={isSigningOut}
       onSignOut={handleSignOut}
       onRefresh={refresh}
-      onUpdate={updateLead}
-      onDelete={deleteLead}
+      onSetPriority={setPriority}
     />
   )
 }
@@ -341,8 +415,7 @@ export function PublicLeadDashboard({
     realtimeWarning,
     lastSyncedAt,
     refresh,
-    updateLead,
-    deleteLead,
+    setPriority,
   } = useJobLeads(client)
 
   return (
@@ -356,8 +429,7 @@ export function PublicLeadDashboard({
       userLabel="No sign-in required"
       headerBadgeLabel="Public local mode"
       onRefresh={refresh}
-      onUpdate={updateLead}
-      onDelete={deleteLead}
+      onSetPriority={setPriority}
     />
   )
 }
@@ -374,8 +446,7 @@ export function PreviewLeadDashboard() {
       userLabel="Local preview"
       isPreview
       onRefresh={() => undefined}
-      onUpdate={() => Promise.resolve()}
-      onDelete={() => Promise.resolve()}
+      onSetPriority={() => Promise.resolve()}
     />
   )
 }

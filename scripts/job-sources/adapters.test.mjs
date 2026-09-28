@@ -1,14 +1,43 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
+import {
+  fetchArbeitnowJobs,
+  normalizeArbeitnowJob,
+} from "./arbeitnow.mjs"
 import { normalizeAshbyJob } from "./ashby.mjs"
+import { normalizeAylaJob } from "./ayla.mjs"
+import { fetchEuresJobs, normalizeEuresJob } from "./eures.mjs"
 import { normalizeGreenhouseJob } from "./greenhouse.mjs"
 import { normalizeHimalayasJob } from "./himalayas.mjs"
 import { normalizeJobicyJob } from "./jobicy.mjs"
+import { fetchJobTechJobs, normalizeJobTechJob } from "./jobtech.mjs"
 import { normalizeJoobleJob } from "./jooble.mjs"
 import { normalizeLeverJob } from "./lever.mjs"
+import { normalizeNomado24Job } from "./nomado24.mjs"
+import {
+  fetchPersonioJobs,
+  normalizePersonioJob,
+} from "./personio.mjs"
 import { normalizeRemotiveJob } from "./remotive.mjs"
 import { normalizeRemoteOkJob } from "./remote-ok.mjs"
+import { normalizeSmartRecruitersJob } from "./smartrecruiters.mjs"
+import { fetchTheMuseJobs, normalizeTheMuseJob } from "./the-muse.mjs"
 import { normalizeWeWorkRemotelyJob } from "./we-work-remotely.mjs"
+import { normalizeWorkableJob } from "./workable.mjs"
+
+function jsonResponse(payload) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  })
+}
+
+function textResponse(payload) {
+  return new Response(payload, {
+    status: 200,
+    headers: { "content-type": "application/xml" },
+  })
+}
 
 describe("job source normalization", () => {
   it("normalizes Greenhouse publication metadata", () => {
@@ -225,5 +254,487 @@ describe("job source normalization", () => {
       isRemote: true,
       sourceTimestampKind: "published",
     })
+  })
+
+  it("normalizes Arbeitnow creation metadata", () => {
+    const job = normalizeArbeitnowJob({
+      slug: "senior-backend-engineer",
+      company_name: "Acme",
+      title: "Senior Backend Engineer",
+      description: "<p>Build APIs.</p>",
+      remote: true,
+      url: "https://www.arbeitnow.com/jobs/acme/backend",
+      location: "Berlin, Germany",
+      created_at: 1_790_241_308,
+    })
+
+    expect(job).toMatchObject({
+      source: "arbeitnow",
+      sourceJobId: "senior-backend-engineer",
+      company: "Acme",
+      description: "Build APIs.",
+      isRemote: true,
+      sourceTimestampKind: "created",
+    })
+  })
+
+  it("normalizes The Muse locations and publication metadata", () => {
+    const job = normalizeTheMuseJob({
+      id: 31,
+      name: "Software Engineer",
+      contents: "<p>Build remotely.</p>",
+      publication_date: "2026-09-24T04:55:08Z",
+      locations: [{ name: "Flexible / Remote" }],
+      categories: [{ name: "Software Engineering" }],
+      refs: { landing_page: "https://www.themuse.com/jobs/acme/engineer" },
+      company: { name: "Acme" },
+    })
+
+    expect(job).toMatchObject({
+      source: "themuse",
+      sourceJobId: "31",
+      company: "Acme",
+      location: "Flexible / Remote",
+      isRemote: true,
+      sourceTimestampKind: "published",
+    })
+  })
+
+  it("normalizes JobTech publication and Swedish remote metadata", () => {
+    const job = normalizeJobTechJob({
+      id: "32",
+      headline: "Software Developer",
+      webpage_url: "https://arbetsformedlingen.se/platsbanken/annonser/32",
+      publication_date: "2026-09-24T04:55:08",
+      employer: { workplace: "Acme Sweden" },
+      workplace_model: { label: "Distansarbete" },
+      workplace_address: {
+        city: "Stockholm",
+        municipality: "Stockholm",
+        region: "Stockholms län",
+        country: "Sverige",
+      },
+      description: { text: "Build software." },
+    })
+
+    expect(job).toMatchObject({
+      source: "jobtech",
+      sourceJobId: "32",
+      company: "Acme Sweden",
+      location: "Stockholm, Stockholms län, Sverige",
+      isRemote: true,
+      sourceTimestampAt: "2026-09-24T02:55:08.000Z",
+      sourceTimestampKind: "published",
+    })
+  })
+
+  it("normalizes Ayla government source links", () => {
+    const job = normalizeAylaJob({
+      id: "ayla-1",
+      title: "Software Engineer",
+      agency: "Public Agency",
+      locationText: "Remote, USA",
+      workArrangement: "remote",
+      sourceUrl: "https://agency.example/jobs/1",
+      postedDate: "2026-09-24T04:55:08Z",
+    })
+
+    expect(job).toMatchObject({
+      source: "ayla",
+      sourceJobId: "ayla-1",
+      company: "Public Agency",
+      isRemote: true,
+      sourceTimestampKind: "published",
+    })
+  })
+
+  it("normalizes Nomado24 publication metadata", () => {
+    const job = normalizeNomado24Job({
+      slug: "nomado-1",
+      title: "Backend Developer",
+      companyName: "Acme",
+      location: "Remote EU",
+      remote: true,
+      publishedAt: "2026-09-24T04:55:08Z",
+      url: "https://www.nomado24.de/en/remote-jobs/job/nomado-1",
+    })
+
+    expect(job).toMatchObject({
+      source: "nomado24",
+      sourceJobId: "nomado-1",
+      company: "Acme",
+      isRemote: true,
+      sourceTimestampKind: "published",
+    })
+  })
+
+  it("normalizes EURES creation metadata and portal links", () => {
+    const job = normalizeEuresJob({
+      id: "encoded-id",
+      title: "Software Developer",
+      description: "<p>Build software remotely.</p>",
+      creationDate: 1_790_241_308_000,
+      locationMap: { DE: ["DE1"] },
+      employer: { name: "Acme Europe" },
+    })
+
+    expect(job).toMatchObject({
+      source: "eures",
+      sourceJobId: "encoded-id",
+      company: "Acme Europe",
+      location: "DE",
+      isRemote: true,
+      sourceTimestampKind: "created",
+    })
+    expect(job.url).toContain("/jv-details/encoded-id")
+  })
+
+  it("normalizes SmartRecruiters public postings", () => {
+    const job = normalizeSmartRecruitersJob(
+      {
+        id: "sr-1",
+        name: "AI Engineer",
+        company: { identifier: "Acme", name: "Acme" },
+        releasedDate: "2026-09-24T04:55:08Z",
+        location: {
+          fullLocation: "Remote, USA",
+          remote: true,
+        },
+      },
+      { board: "Acme" },
+    )
+
+    expect(job).toMatchObject({
+      source: "smartrecruiters",
+      sourceJobId: "sr-1",
+      company: "Acme",
+      isRemote: true,
+      sourceTimestampKind: "published",
+    })
+    expect(job.url).toContain("/Acme/sr-1-ai-engineer")
+  })
+
+  it("does not classify hybrid arrangements as remote", () => {
+    expect(
+      normalizeSmartRecruitersJob({
+        id: "sr-hybrid",
+        name: "Software Engineer",
+        company: { identifier: "Acme", name: "Acme" },
+        location: { fullLocation: "Manila", hybrid: true },
+      }).isRemote,
+    ).toBe(false)
+    expect(
+      normalizeAylaJob({
+        id: "ayla-hybrid",
+        title: "Software Engineer",
+        locationText: "Manila",
+        workArrangement: "hybrid",
+      }).isRemote,
+    ).toBe(false)
+    expect(
+      normalizeAylaJob({
+        id: "ayla-remote-eligible",
+        title: "Software Engineer",
+        locationText: "Manila",
+        workArrangement: "Remote Eligible",
+      }).isRemote,
+    ).toBe(false)
+    expect(
+      normalizeNomado24Job({
+        slug: "nomado-hybrid",
+        title: "Software Engineer",
+        location: "Berlin",
+        workArrangement: "hybrid",
+      }).isRemote,
+    ).toBe(false)
+  })
+
+  it("does not infer remote work from descriptions or loose flags", () => {
+    expect(
+      normalizeGreenhouseJob(
+        {
+          id: "gh-office",
+          title: "Software Engineer",
+          location: { name: "Seattle" },
+          content: "Work with a distributed remote team.",
+          absolute_url: "https://example.com/gh-office",
+        },
+        { board: "acme" },
+      ).isRemote,
+    ).toBe(false)
+    expect(
+      normalizeWorkableJob({
+        shortcode: "workable-office",
+        title: "Software Engineer",
+        city: "Irvine",
+        description: "Remote diagnostics experience is useful.",
+      }).isRemote,
+    ).toBe(false)
+    expect(
+      normalizeTheMuseJob({
+        id: "muse-office",
+        name: "Software Engineer",
+        locations: [{ name: "Sunnyvale, CA" }],
+        contents: "Collaborate with remote teams.",
+      }).isRemote,
+    ).toBe(false)
+    expect(
+      normalizeSmartRecruitersJob({
+        id: "sr-loose-remote",
+        name: "Software Engineer",
+        location: { fullLocation: "Budapest", remote: true },
+      }).isRemote,
+    ).toBe(false)
+  })
+
+  it("normalizes Workable publication metadata", () => {
+    const job = normalizeWorkableJob(
+      {
+        shortcode: "workable-1",
+        title: "Frontend Developer",
+        description: "<p>Build interfaces.</p>",
+        url: "https://apply.workable.com/j/workable-1",
+        published_on: "2026-09-24",
+        telecommuting: true,
+        city: "London",
+        country: "United Kingdom",
+      },
+      { company: "Acme" },
+    )
+
+    expect(job).toMatchObject({
+      source: "workable",
+      sourceJobId: "workable-1",
+      company: "Acme",
+      description: "Build interfaces.",
+      isRemote: true,
+      sourceTimestampKind: "published",
+    })
+  })
+
+  it("normalizes Personio XML fields", () => {
+    const job = normalizePersonioJob(
+      {
+        id: "personio-1",
+        name: "Automation Engineer",
+        subcompany: "Acme GmbH",
+        office: "Remote",
+        createdAt: "2026-09-24T04:55:08Z",
+        jobDescriptions: {
+          jobDescription: {
+            name: "Your mission",
+            value: "<p>Build automation.</p>",
+          },
+        },
+      },
+      { board: "acme", company: "Acme" },
+    )
+
+    expect(job).toMatchObject({
+      source: "personio",
+      sourceJobId: "personio-1",
+      company: "Acme GmbH",
+      isRemote: true,
+      sourceTimestampKind: "created",
+    })
+    expect(job.description).toContain("Your mission")
+    expect(job.description).toContain("Build automation.")
+  })
+
+  it("paginates Arbeitnow until its configured limit", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [
+            {
+              slug: "job-1",
+              title: "Software Engineer",
+              url: "https://example.com/jobs/1",
+            },
+          ],
+          links: { next: "https://example.com/page/2" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [
+            {
+              slug: "job-2",
+              title: "Backend Developer",
+              url: "https://example.com/jobs/2",
+            },
+          ],
+          links: { next: null },
+        }),
+      )
+
+    const jobs = await fetchArbeitnowJobs(
+      { endpoint: "https://example.com/jobs", pages: 3 },
+      { fetchImpl },
+    )
+
+    expect(jobs.map((job) => job.sourceJobId)).toEqual(["job-1", "job-2"])
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it("paginates and deduplicates The Muse category results", async () => {
+    const museJob = {
+      id: 41,
+      name: "Software Engineer",
+      refs: { landing_page: "https://example.com/jobs/41" },
+    }
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ results: [museJob], page_count: 2 }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ results: [museJob], page_count: 2 }),
+      )
+
+    const jobs = await fetchTheMuseJobs(
+      {
+        endpoint: "https://example.com/jobs",
+        categories: ["Software Engineering"],
+        pages: 2,
+      },
+      {
+        fetchImpl,
+        environment: { THE_MUSE_API_KEY: "test-key" },
+      },
+    )
+
+    expect(jobs).toHaveLength(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(String(fetchImpl.mock.calls[0][0])).toContain("api_key=test-key")
+  })
+
+  it("paginates JobTech query results", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          total: { value: 2 },
+          hits: [
+            {
+              id: "51",
+              headline: "Software Engineer",
+              webpage_url: "https://example.com/jobs/51",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          total: { value: 2 },
+          hits: [
+            {
+              id: "52",
+              headline: "Backend Developer",
+              webpage_url: "https://example.com/jobs/52",
+            },
+          ],
+        }),
+      )
+
+    const jobs = await fetchJobTechJobs(
+      {
+        endpoint: "https://example.com/jobs",
+        queries: ["software"],
+        pages: 2,
+        pageSize: 1,
+      },
+      { fetchImpl },
+    )
+
+    expect(jobs.map((job) => job.sourceJobId)).toEqual(["51", "52"])
+    expect(String(fetchImpl.mock.calls[1][0])).toContain("offset=1")
+  })
+
+  it("paginates EURES with POST request bodies", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          numberRecords: 2,
+          jvs: [
+            {
+              id: "eures-1",
+              title: "Software Engineer",
+              employer: { name: "Acme" },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          numberRecords: 2,
+          jvs: [
+            {
+              id: "eures-2",
+              title: "Backend Developer",
+              employer: { name: "Acme" },
+            },
+          ],
+        }),
+      )
+
+    const jobs = await fetchEuresJobs(
+      {
+        endpoint: "https://example.com/eures",
+        queries: ["software"],
+        pages: 2,
+        pageSize: 1,
+      },
+      { fetchImpl },
+    )
+
+    expect(jobs.map((job) => job.sourceJobId)).toEqual([
+      "eures-1",
+      "eures-2",
+    ])
+    expect(fetchImpl.mock.calls[0][1].method).toBe("POST")
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body).page).toBe(2)
+  })
+
+  it("parses Personio XML feeds", async () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+      <workzag-jobs>
+        <position>
+          <id>personio-2</id>
+          <name>Software Engineer</name>
+          <office>Berlin</office>
+          <createdAt>2026-09-24T04:55:08Z</createdAt>
+          <jobDescriptions>
+            <jobDescription>
+              <name>Your mission</name>
+              <value><![CDATA[<p>Build software.</p>]]></value>
+            </jobDescription>
+          </jobDescriptions>
+        </position>
+      </workzag-jobs>`
+    const jobs = await fetchPersonioJobs(
+      { board: "acme", company: "Acme", language: "en" },
+      { fetchImpl: vi.fn().mockResolvedValue(textResponse(xml)) },
+    )
+
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0]).toMatchObject({
+      source: "personio",
+      sourceJobId: "personio-2",
+      title: "Software Engineer",
+      sourceTimestampKind: "created",
+    })
+    expect(jobs[0].description).toContain("Build software.")
+  })
+
+  it("rejects malformed public API payloads", async () => {
+    await expect(
+      fetchArbeitnowJobs(
+        { endpoint: "https://example.com/jobs", pages: 1 },
+        { fetchImpl: vi.fn().mockResolvedValue(jsonResponse({})) },
+      ),
+    ).rejects.toThrow("Arbeitnow returned an invalid jobs payload.")
   })
 })

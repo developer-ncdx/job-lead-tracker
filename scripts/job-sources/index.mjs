@@ -1,17 +1,29 @@
+import { fetchArbeitnowJobs } from "./arbeitnow.mjs"
 import { fetchAshbyJobs } from "./ashby.mjs"
+import { fetchAylaJobs } from "./ayla.mjs"
+import { fetchEuresJobs } from "./eures.mjs"
 import { fetchGreenhouseJobs } from "./greenhouse.mjs"
 import { fetchHimalayasJobs } from "./himalayas.mjs"
 import { fetchJobicyJobs } from "./jobicy.mjs"
+import { fetchJobTechJobs } from "./jobtech.mjs"
 import { fetchJoobleJobs } from "./jooble.mjs"
 import { fetchLeverJobs } from "./lever.mjs"
+import { fetchNomado24Jobs } from "./nomado24.mjs"
+import { fetchPersonioJobs } from "./personio.mjs"
 import { fetchRemotiveJobs } from "./remotive.mjs"
 import { fetchRemoteOkJobs } from "./remote-ok.mjs"
+import { fetchSmartRecruitersJobs } from "./smartrecruiters.mjs"
+import { fetchTheMuseJobs } from "./the-muse.mjs"
 import { fetchWeWorkRemotelyJobs } from "./we-work-remotely.mjs"
+import { fetchWorkableJobs } from "./workable.mjs"
 
 const BOARD_ADAPTERS = Object.freeze({
   greenhouse: fetchGreenhouseJobs,
   ashby: fetchAshbyJobs,
   lever: fetchLeverJobs,
+  smartrecruiters: fetchSmartRecruitersJobs,
+  workable: fetchWorkableJobs,
+  personio: fetchPersonioJobs,
 })
 
 const PUBLIC_FEED_ADAPTERS = Object.freeze({
@@ -20,6 +32,13 @@ const PUBLIC_FEED_ADAPTERS = Object.freeze({
   remoteok: fetchRemoteOkJobs,
   jobicy: fetchJobicyJobs,
   himalayas: fetchHimalayasJobs,
+  arbeitnow: fetchArbeitnowJobs,
+  arbeitnowuk: fetchArbeitnowJobs,
+  themuse: fetchTheMuseJobs,
+  jobtech: fetchJobTechJobs,
+  eures: fetchEuresJobs,
+  ayla: fetchAylaJobs,
+  nomado24: fetchNomado24Jobs,
 })
 
 async function captureSourceResult(source, name, fetchJobs) {
@@ -66,7 +85,7 @@ export async function fetchConfiguredSourceResults(
     .filter(([source]) => config[source]?.enabled !== false)
     .map(([source, fetchJobs]) =>
       captureSourceResult(source, `${source}:global`, () =>
-        fetchJobs(config[source], { fetchImpl }),
+        fetchJobs(config[source], { fetchImpl, environment }),
       ),
     )
   const results = await Promise.all([...boardTasks, ...publicFeedTasks])

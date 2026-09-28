@@ -2,18 +2,21 @@
 
 A small, private React app for reviewing job leads stored in Supabase. Leads
 are created by external sources; the UI reads them, keeps them synchronized,
-and lets the user edit or delete them.
+and lets the user sort them by date or save them to a priority list.
 
 ## What is included
 
-- Temporary no-login public CRUD mode for local development
+- Temporary no-login public priority mode for local development
 - Owner-scoped Row Level Security
 - Responsive lead cards with safe external links
-- Edit and delete flows with validation and confirmation
+- Newest-first and oldest-first date sorting
+- Supabase-backed priority controls and a dedicated Priority tab
 - Initial fetch, manual refresh, and Supabase Realtime refreshes
 - Server-side Greenhouse, Ashby, Lever, We Work Remotely, Remotive, Remote OK,
-  Jobicy, Himalayas, and optional Jooble ingestion
-- Global software-development role filtering and duplicate prevention
+  Jobicy, Himalayas, Arbeitnow, Arbeitnow UK, The Muse, JobTech Sweden,
+  EURES, Ayla Government, Nomado24, SmartRecruiters, Workable, Personio, and
+  optional Jooble ingestion
+- Remote-only software-development role filtering and duplicate prevention
 - Source-aware Published, Created, Updated, and First seen timestamps
 - Loading, empty, stale-data, configuration, and mutation error states
 - React, TypeScript, Vite, Tailwind CSS, and shadcn components
@@ -23,7 +26,9 @@ and lets the user edit or delete them.
 - Node.js 20.19 or newer
 - A Supabase project
 - An optional [Jooble API key](https://jooble.org/api/about) for broad global
-  search; the other configured sources do not need keys
+  search
+- An optional [The Muse API key](https://www.themuse.com/developers/api/v2)
+  for a higher request allowance; its public endpoint works without one
 
 ## 1. Create the database table
 
@@ -33,16 +38,18 @@ Open the Supabase SQL Editor and run these files in order:
 2. `supabase/migrations/002_job_source_metadata.sql`
 3. `supabase/migrations/003_temporary_public_crud.sql`
 4. `supabase/migrations/004_public_imports_without_auth.sql`
+5. `supabase/migrations/005_job_lead_priorities.sql`
 
 The migrations create the `job_leads` table, source metadata, timestamp
 semantics, duplicate constraint, trigger, Realtime publication entry, grants,
 and RLS policies. Migration `003` temporarily permits anonymous read, update,
 and delete access so the local app does not require a login. Migration `004`
-allows server-side imports to use a null owner in this public mode.
+allows server-side imports to use a null owner in this public mode. Migration
+`005` adds priority storage and removes browser delete access.
 
-> **Warning:** public CRUD mode exposes every `job_leads` row to anyone who has
-> the project URL and browser key. Do not deploy the app publicly while
-> migration `003` is active. Inserts remain server-only.
+> **Warning:** public mode exposes every `job_leads` row and its priority
+> setting to anyone who has the project URL and browser key. Do not deploy the
+> app publicly while migration `003` is active. Inserts remain server-only.
 
 If this repository is linked to a Supabase project with the Supabase CLI, you
 can apply the migration with:
@@ -73,11 +80,13 @@ JOB_LEADS_OWNER_ID=
 
 # Optional
 JOOBLE_API_KEY=
+THE_MUSE_API_KEY=
 ```
 
 The anon/publishable key is designed for browser use and is protected by RLS.
 The service-role key is only for the Node sync process. Never put a Supabase
-`service_role`, Jooble key, or any other secret in a `VITE_` variable.
+`service_role`, Jooble key, The Muse key, or any other secret in a `VITE_`
+variable.
 
 Restart the development server after changing environment variables.
 
@@ -96,9 +105,20 @@ without a login.
 `job-sources.config.json` contains company boards and global public feeds.
 Greenhouse, Ashby, and Lever each expose one company board per URL. We Work
 Remotely, Remotive, Remote OK, Jobicy, and Himalayas provide broad remote-job
-discovery. Jooble adds another global search when `JOOBLE_API_KEY` is present.
+discovery. The Muse adds category-filtered listings, Arbeitnow UK provides a UK
+feed, and Ayla aggregates government and contractor openings. SmartRecruiters,
+Workable, and Personio consume configured public employer boards. Jooble adds
+another global search when `JOOBLE_API_KEY` is present. The multilingual
+Arbeitnow Europe, JobTech Sweden, EURES, and Nomado24 feeds are disabled in the
+default English-only configuration.
 
-The default role filter accepts AI, ML, LLM, Bubble.io, software, web,
+The public-source page and query limits are configured per source. The Muse
+public endpoint allows 500 requests per hour without a key and 3,600 with a
+registered app key. Retain each source's direct posting link and attribution
+when displaying imported jobs.
+
+The sync accepts explicitly remote jobs and rejects hybrid, on-site, and
+office-based positions. Its role filter accepts AI, ML, LLM, Bubble.io, software, web,
 frontend, backend, full-stack, mobile, AI-agent, agentic, AI-assisted,
 automation, platform, DevOps, data, test-automation, programmer, technical
 lead, and closely related software-development positions. Adjacent sales,
@@ -132,12 +152,14 @@ npm run jobs:sync
 ```
 
 The sync normalizes source data, filters role titles, removes duplicate source
-IDs and URLs, preserves user-edited title/description/URL values, and upserts
+IDs and URLs, preserves existing title/description/URL values, and upserts
 source metadata. API timestamps retain their meaning:
 
 - Greenhouse and Ashby: `Published`
 - Lever: `Created`
 - We Work Remotely, Remotive, Remote OK, Jobicy, and Himalayas: `Published`
+- Arbeitnow UK and Personio: `Created`
+- The Muse, Ayla, SmartRecruiters, and Workable: `Published`
 - Jooble: `Updated`
 - Missing source timestamp: `First seen`
 
@@ -147,9 +169,12 @@ For a local recurring process:
 npm run jobs:watch
 ```
 
-The default interval is ten minutes. Override it with
-`JOB_SYNC_INTERVAL_MINUTES`. The watcher only runs while the computer/process
-is active; use a server scheduler or hosted cron for an always-on deployment.
+The default interval is 60 minutes because Jobicy limits automated polling to
+once per hour. Override it with `JOB_SYNC_INTERVAL_MINUTES` only when every
+enabled source permits the chosen interval. The watcher only runs while the
+computer/process is active; use a server scheduler or hosted cron for an
+always-on deployment. Each provider controls when its upstream data refreshes,
+so polling more often does not guarantee newer listings.
 
 ## Add leads from an external source
 
@@ -204,9 +229,9 @@ Set `VITE_AUTH_MODE=public` and restart the development server. Missing
 Run the sync and confirm migration `004` is applied. In authenticated mode,
 check that each row's `user_id` matches the signed-in user's UUID.
 
-**Edits or deletes are denied**
+**Priority changes are denied**
 
-Apply all three migrations and verify the browser is using the anon or
+Apply all five migrations and verify the browser is using the anon or
 publishable key from the same project.
 
 **New external rows do not appear live**

@@ -18,6 +18,15 @@ describe("shared job-source normalization", () => {
       "2025-09-22T08:00:00.000Z",
     )
     expect(normalizeTimestamp("not-a-date")).toBeNull()
+    expect(
+      normalizeTimestamp("2026-09-28T15:24:32", "Europe/Stockholm"),
+    ).toBe("2026-09-28T13:24:32.000Z")
+    expect(
+      normalizeTimestamp("2026-01-15T15:24:32", "Europe/Stockholm"),
+    ).toBe("2026-01-15T14:24:32.000Z")
+    expect(
+      normalizeTimestamp("2026-09-28T15:24:32Z", "Europe/Stockholm"),
+    ).toBe("2026-09-28T15:24:32.000Z")
   })
 
   it("normalizes identifiers without turning missing values into text", () => {

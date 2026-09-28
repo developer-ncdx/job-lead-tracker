@@ -6,11 +6,7 @@ import {
   sortJobLeadsByTimestamp,
   useJobLeads,
 } from "@/hooks/use-job-leads"
-import type {
-  Database,
-  JobLead,
-  JobLeadUpdate,
-} from "@/lib/database.types"
+import type { Database, JobLead } from "@/lib/database.types"
 
 const lead: JobLead = {
   id: "lead-1",
@@ -23,6 +19,7 @@ const lead: JobLead = {
   company: "Example",
   location: "Remote",
   is_remote: true,
+  is_priority: false,
   source_timestamp_at: "2026-09-20T08:00:00.000Z",
   source_timestamp_kind: "published",
   first_seen_at: "2026-09-20T08:05:00.000Z",
@@ -55,21 +52,9 @@ function createClientMock(fetchError: { message: string } | null = null) {
   updateMutation.eq.mockReturnValue(updateMutation)
   updateMutation.select.mockReturnValue(updateMutation)
 
-  const deleteMutation = {
-    eq: vi.fn(),
-    select: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue({
-      data: { id: lead.id },
-      error: null,
-    }),
-  }
-  deleteMutation.eq.mockReturnValue(deleteMutation)
-  deleteMutation.select.mockReturnValue(deleteMutation)
-
   const table = {
     select: vi.fn().mockReturnValue(fetchBuilder),
     update: vi.fn().mockReturnValue(updateMutation),
-    delete: vi.fn().mockReturnValue(deleteMutation),
   }
 
   const channel = {
@@ -96,7 +81,6 @@ function createClientMock(fetchError: { message: string } | null = null) {
     range,
     fetchBuilder,
     updateMutation,
-    deleteMutation,
   }
 }
 
@@ -116,9 +100,15 @@ describe("useJobLeads", () => {
         ({ id }) => id,
       ),
     ).toEqual(["lead-2", "lead-1"])
+    expect(
+      sortJobLeadsByTimestamp(
+        [lead, newlyDiscoveredLead],
+        "oldest",
+      ).map(({ id }) => id),
+    ).toEqual(["lead-1", "lead-2"])
   })
 
-  it("fetches leads, then refetches after update and delete", async () => {
+  it("fetches leads, then refetches after setting priority", async () => {
     const { client, table, range } = createClientMock()
     const { result } = renderHook(() => useJobLeads(client, "user-1"))
 
@@ -126,19 +116,9 @@ describe("useJobLeads", () => {
     expect(result.current.leads).toEqual([lead])
     expect(result.current.error).toBeNull()
 
-    const update: JobLeadUpdate = {
-      title: "Principal Product Designer",
-      description: lead.description,
-      url: lead.url,
-    }
-
-    await act(() => result.current.updateLead(lead.id, update))
-    expect(table.update).toHaveBeenCalledWith(update)
+    await act(() => result.current.setPriority(lead.id, true))
+    expect(table.update).toHaveBeenCalledWith({ is_priority: true })
     expect(range).toHaveBeenCalledTimes(2)
-
-    await act(() => result.current.deleteLead(lead.id))
-    expect(table.delete).toHaveBeenCalledOnce()
-    expect(range).toHaveBeenCalledTimes(3)
   })
 
   it("does not add an owner filter in public mode", async () => {
@@ -146,7 +126,6 @@ describe("useJobLeads", () => {
       client,
       fetchBuilder,
       updateMutation,
-      deleteMutation,
     } = createClientMock()
     const { result } = renderHook(() => useJobLeads(client))
 
@@ -154,18 +133,10 @@ describe("useJobLeads", () => {
     expect(fetchBuilder.eq).not.toHaveBeenCalled()
 
     await act(() =>
-      result.current.updateLead(lead.id, {
-        title: lead.title,
-        description: lead.description,
-        url: lead.url,
-      }),
+      result.current.setPriority(lead.id, true),
     )
     expect(updateMutation.eq).toHaveBeenCalledTimes(1)
     expect(updateMutation.eq).toHaveBeenCalledWith("id", lead.id)
-
-    await act(() => result.current.deleteLead(lead.id))
-    expect(deleteMutation.eq).toHaveBeenCalledTimes(1)
-    expect(deleteMutation.eq).toHaveBeenCalledWith("id", lead.id)
   })
 
   it("surfaces failed fetches without throwing", async () => {

@@ -88,20 +88,99 @@ export function cleanText(value) {
     .trim()
 }
 
-export function normalizeTimestamp(value) {
+const NAIVE_DATE_TIME =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?)?$/
+
+function timeZoneOffsetMs(utcMs, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(utcMs))
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  )
+  const hour = values.hour === "24" ? 0 : Number(values.hour)
+  const zonedAsUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    hour,
+    Number(values.minute),
+    Number(values.second),
+  )
+
+  return zonedAsUtc - utcMs
+}
+
+function zonedWallTimeToUtc(value, timeZone) {
+  const match = String(value).trim().match(NAIVE_DATE_TIME)
+
+  if (!match) {
+    return null
+  }
+
+  const [
+    ,
+    year,
+    month,
+    day,
+    hour = "00",
+    minute = "00",
+    second = "00",
+    fraction = "",
+  ] = match
+  const milliseconds = fraction ? Math.round(Number(fraction) * 1_000) : 0
+  const wallTimeAsUtc = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+    milliseconds,
+  )
+  const initialOffset = timeZoneOffsetMs(wallTimeAsUtc, timeZone)
+  let utcMs = wallTimeAsUtc - initialOffset
+  const correctedOffset = timeZoneOffsetMs(utcMs, timeZone)
+
+  if (correctedOffset !== initialOffset) {
+    utcMs = wallTimeAsUtc - correctedOffset
+  }
+
+  const timestamp = new Date(utcMs)
+  return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString()
+}
+
+export function normalizeTimestamp(value, timeZone) {
   if (value === null || value === undefined || value === "") {
     return null
   }
 
-  const timestamp =
-    typeof value === "number" || /^\d{10,13}$/.test(String(value))
-      ? new Date(
-          Number(value) < 10_000_000_000
-            ? Number(value) * 1_000
-            : Number(value),
-        )
-      : new Date(String(value))
+  if (typeof value === "number" || /^\d{10,13}$/.test(String(value).trim())) {
+    const numericValue = Number(value)
+    const timestamp = new Date(
+      numericValue < 10_000_000_000 ? numericValue * 1_000 : numericValue,
+    )
 
+    return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString()
+  }
+
+  const text = String(value).trim()
+  const hasTimeZone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(text)
+
+  if (timeZone && !hasTimeZone) {
+    return zonedWallTimeToUtc(text, timeZone)
+  }
+
+  const timestamp = new Date(text)
   return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString()
 }
 
@@ -120,7 +199,7 @@ export function inferRemote(...values) {
     .filter(Boolean)
     .join(" ")
 
-  return /\b(?:remote|work\s+from\s+(?:home|anywhere)|worldwide|distributed)\b/i.test(
+  return /\b(?:remote(?:ly)?|work\s+from\s+(?:home|anywhere)|worldwide|distributed)\b/i.test(
     text,
   )
 }

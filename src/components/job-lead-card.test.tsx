@@ -15,6 +15,7 @@ const lead: JobLead = {
   company: "Example",
   location: "Remote",
   is_remote: true,
+  is_priority: false,
   source_timestamp_at: "2026-09-20T08:00:00.000Z",
   source_timestamp_kind: "published",
   first_seen_at: "2026-09-20T08:05:00.000Z",
@@ -28,8 +29,7 @@ describe("JobLeadCard", () => {
     const { container } = render(
       <JobLeadCard
         lead={lead}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
+        onSetPriority={vi.fn()}
       />,
     )
 
@@ -39,7 +39,9 @@ describe("JobLeadCard", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer")
     expect(screen.getByText(lead.title)).toBeInTheDocument()
     const postedTime = container.querySelector("time")
-    expect(postedTime?.parentElement).toHaveTextContent("Posted")
+    expect(postedTime?.parentElement).toHaveTextContent(
+      "Posted Sep 20, 2026, 4:00 PM PHT",
+    )
     expect(postedTime).toHaveAttribute(
       "datetime",
       lead.source_timestamp_at,
@@ -47,14 +49,16 @@ describe("JobLeadCard", () => {
     expect(screen.queryByText(lead.description)).not.toBeInTheDocument()
     expect(screen.queryByText("Example")).not.toBeInTheDocument()
     expect(screen.queryByText("Greenhouse")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: `Edit ${lead.title}` }),
+    ).not.toBeInTheDocument()
   })
 
   it("hides database actions in read-only previews", () => {
     render(
       <JobLeadCard
         lead={lead}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
+        onSetPriority={vi.fn()}
         readOnly
       />,
     )
@@ -63,77 +67,30 @@ describe("JobLeadCard", () => {
       screen.queryByRole("button", { name: `Edit ${lead.title}` }),
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole("button", { name: `Delete ${lead.title}` }),
+      screen.queryByRole("button", {
+        name: `Add ${lead.title} to priority`,
+      }),
     ).not.toBeInTheDocument()
   })
 
-  it("validates and saves edited lead details", async () => {
-    const onUpdate = vi.fn().mockResolvedValue(undefined)
+  it("adds a lead to the priority list", async () => {
+    const onSetPriority = vi.fn().mockResolvedValue(undefined)
 
     render(
       <JobLeadCard
         lead={lead}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
+        onSetPriority={onSetPriority}
       />,
     )
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: `Edit ${lead.title}`,
+        name: `Add ${lead.title} to priority`,
       }),
     )
-
-    const title = await screen.findByLabelText("Title")
-    const url = screen.getByLabelText("Job posting URL")
-    expect(screen.queryByLabelText("Description")).not.toBeInTheDocument()
-    fireEvent.change(title, { target: { value: "  Lead Designer  " } })
-    fireEvent.change(url, { target: { value: "not-a-url" } })
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
-
-    expect(
-      await screen.findByText(
-        "Use a complete URL starting with http:// or https://.",
-      ),
-    ).toBeInTheDocument()
-    expect(onUpdate).not.toHaveBeenCalled()
-
-    fireEvent.change(url, {
-      target: { value: " https://example.com/jobs/lead-designer " },
-    })
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
 
     await waitFor(() =>
-      expect(onUpdate).toHaveBeenCalledWith(lead.id, {
-        title: "Lead Designer",
-        description: lead.description,
-        url: "https://example.com/jobs/lead-designer",
-      }),
+      expect(onSetPriority).toHaveBeenCalledWith(lead.id, true),
     )
-  })
-
-  it("requires confirmation before deleting", async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined)
-
-    render(
-      <JobLeadCard
-        lead={lead}
-        onUpdate={vi.fn()}
-        onDelete={onDelete}
-      />,
-    )
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: `Delete ${lead.title}`,
-      }),
-    )
-
-    expect(await screen.findByText("Delete this lead?")).toBeInTheDocument()
-    expect(onDelete).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole("button", { name: "Delete lead" }))
-
-    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(lead.id))
   })
 })

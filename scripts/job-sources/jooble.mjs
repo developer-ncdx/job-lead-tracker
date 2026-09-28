@@ -23,7 +23,6 @@ export function normalizeJoobleJob(rawJob) {
       location,
       rawJob.type,
       rawJob.title,
-      rawJob.snippet,
     ),
     sourceTimestampAt: updatedAt,
     sourceTimestampKind: updatedAt ? "updated" : null,

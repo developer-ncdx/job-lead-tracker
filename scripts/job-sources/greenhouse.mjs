@@ -25,11 +25,7 @@ export function normalizeGreenhouseJob(rawJob, boardConfig) {
     description: cleanText(rawJob.content),
     url: canonicalizeUrl(rawJob.absolute_url),
     location: cleanText(rawJob.location?.name),
-    isRemote: inferRemote(
-      rawJob.location?.name,
-      rawJob.title,
-      rawJob.content,
-    ),
+    isRemote: inferRemote(rawJob.location?.name, rawJob.title),
     sourceTimestampAt,
     sourceTimestampKind: publishedAt
       ? "published"

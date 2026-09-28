@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   buildSupabaseRows,
   deduplicateJobs,
+  isRemoteOnlyJob,
+  jobFingerprint,
   jobIdentity,
 } from "./sync-utils.mjs"
 
@@ -20,6 +22,37 @@ const greenhouseJob = {
 }
 
 describe("job sync utilities", () => {
+  it("accepts only explicitly remote jobs", () => {
+    expect(isRemoteOnlyJob(greenhouseJob)).toBe(true)
+    expect(isRemoteOnlyJob({ ...greenhouseJob, isRemote: false })).toBe(
+      false,
+    )
+    expect(
+      isRemoteOnlyJob({
+        ...greenhouseJob,
+        location: "Manila (Hybrid)",
+      }),
+    ).toBe(false)
+    expect(
+      isRemoteOnlyJob({
+        ...greenhouseJob,
+        description: "This is an office-based position.",
+      }),
+    ).toBe(false)
+    expect(
+      isRemoteOnlyJob({
+        ...greenhouseJob,
+        description: "Worksite: OnsiteJob Posting",
+      }),
+    ).toBe(false)
+    expect(
+      isRemoteOnlyJob({
+        ...greenhouseJob,
+        description: "This position is partially remote.",
+      }),
+    ).toBe(false)
+  })
+
   it("deduplicates source IDs and canonical URLs", () => {
     const jobs = deduplicateJobs([
       {
@@ -34,6 +67,38 @@ describe("job sync utilities", () => {
     expect(jobs).toHaveLength(1)
     expect(jobs[0].source).toBe("greenhouse")
     expect(jobs[0].url).toBe("https://example.com/jobs/1")
+  })
+
+  it("deduplicates aggregator copies by title, company, and location", () => {
+    const jobs = deduplicateJobs([
+      {
+        ...greenhouseJob,
+        source: "nomado24",
+        sourceJobId: "aggregated-copy",
+        url: "https://nomado24.example/jobs/aggregated-copy",
+      },
+      greenhouseJob,
+    ])
+
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].source).toBe("greenhouse")
+    expect(jobFingerprint(jobs[0])).toBe(
+      "software engineer|acme|remote",
+    )
+  })
+
+  it("retains equivalent titles posted in different locations", () => {
+    const jobs = deduplicateJobs([
+      greenhouseJob,
+      {
+        ...greenhouseJob,
+        sourceJobId: "job-2",
+        url: "https://example.com/jobs/2",
+        location: "London",
+      },
+    ])
+
+    expect(jobs).toHaveLength(2)
   })
 
   it("constructs idempotent rows while preserving user-edited fields", () => {

@@ -18,6 +18,60 @@
       "region": "us"
     }
   ],
+  "smartrecruiters": [
+    {
+      "company": "City of New York",
+      "board": "CityOfNewYork",
+      "queries": ["software", "developer", "AI", "automation"],
+      "pages": 2,
+      "pageSize": 100
+    },
+    {
+      "company": "Bosch",
+      "board": "BoschGroup",
+      "queries": ["software", "developer", "AI", "automation"],
+      "pages": 2,
+      "pageSize": 100
+    },
+    {
+      "company": "Ubisoft",
+      "board": "Ubisoft2",
+      "queries": ["software", "developer", "AI", "automation"],
+      "pages": 2,
+      "pageSize": 100
+    }
+  ],
+  "workable": [
+    {
+      "company": "TP-Link Systems",
+      "board": "tp-link-usa-corp"
+    },
+    {
+      "company": "ENFOS",
+      "board": "enfos-inc"
+    },
+    {
+      "company": "Flexcompute",
+      "board": "flexcompute"
+    }
+  ],
+  "personio": [
+    {
+      "company": "FTAPI",
+      "board": "ftapi",
+      "language": "en"
+    },
+    {
+      "company": "Everphone",
+      "board": "everphone",
+      "language": "en"
+    },
+    {
+      "company": "neoshare",
+      "board": "neoshare",
+      "language": "en"
+    }
+  ],
   "weworkremotely": {
     "enabled": true,
     "feed": "https://weworkremotely.com/categories/remote-programming-jobs.rss"
@@ -40,6 +94,77 @@
     "pages": 5,
     "pageSize": 20
   },
+  "arbeitnow": {
+    "enabled": false,
+    "endpoint": "https://www.arbeitnow.com/api/job-board-api",
+    "pages": 3
+  },
+  "arbeitnowuk": {
+    "enabled": true,
+    "source": "arbeitnowuk",
+    "endpoint": "https://www.arbeitnow.co.uk/api/job-board-api",
+    "pages": 3
+  },
+  "themuse": {
+    "enabled": true,
+    "endpoint": "https://www.themuse.com/api/public/jobs",
+    "categories": [
+      "Software Engineering",
+      "Data Science",
+      "Computer and IT",
+      "IT"
+    ],
+    "pages": 3
+  },
+  "jobtech": {
+    "enabled": false,
+    "endpoint": "https://jobsearch.api.jobtechdev.se/search",
+    "queries": [
+      "software developer",
+      "software engineer",
+      "frontend developer",
+      "backend developer",
+      "fullstack developer",
+      "AI engineer"
+    ],
+    "pages": 1,
+    "pageSize": 100
+  },
+  "eures": {
+    "enabled": false,
+    "endpoint": "https://europa.eu/eures/api/jv-searchengine/public/jv-search/search",
+    "queries": [
+      "software engineer",
+      "software developer",
+      "frontend developer",
+      "backend developer",
+      "AI engineer",
+      "automation engineer"
+    ],
+    "pages": 1,
+    "pageSize": 50
+  },
+  "ayla": {
+    "enabled": true,
+    "endpoint": "https://aylagov.com/api/jobs/search",
+    "queries": [
+      "software engineer",
+      "software developer",
+      "frontend developer",
+      "backend developer",
+      "AI engineer",
+      "automation engineer"
+    ],
+    "pages": 1,
+    "pageSize": 100
+  },
+  "nomado24": {
+    "enabled": false,
+    "endpoint": "https://api.nomado24.de/api/public/v1/jobs",
+    "queries": ["software", "developer", "AI engineer", "automation"],
+    "pages": 1,
+    "pageSize": 50
+  },
   "jooble": {
     "enabled": true,
     "queries": [
@@ -58,5 +183,5 @@
     ],
     "pages": 1
   },
-  "pollIntervalMinutes": 10
+  "pollIntervalMinutes": 60
 }

@@ -10,15 +10,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { JobLead, JobLeadUpdate } from "@/lib/database.types"
+import type { JobLead } from "@/lib/database.types"
 
 type JobLeadListProps = {
   leads: JobLead[]
   isLoading: boolean
   error: string | null
   onRetry: () => void | Promise<void>
-  onUpdate: (leadId: string, values: JobLeadUpdate) => Promise<void>
-  onDelete: (leadId: string) => Promise<void>
+  onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
+  priorityOnly?: boolean
   readOnly?: boolean
 }
 
@@ -44,8 +44,8 @@ export function JobLeadList({
   isLoading,
   error,
   onRetry,
-  onUpdate,
-  onDelete,
+  onSetPriority,
+  priorityOnly = false,
   readOnly = false,
 }: JobLeadListProps) {
   if (isLoading) {
@@ -81,10 +81,13 @@ export function JobLeadList({
           <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-[#f1e8dc] text-[#a95a31]">
             <Inbox className="size-5" aria-hidden="true" />
           </div>
-          <h2 className="text-base font-semibold">No job leads yet</h2>
+          <h2 className="text-base font-semibold">
+            {priorityOnly ? "No priority jobs yet" : "No job leads yet"}
+          </h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            Leads created by your external source will appear here
-            automatically once they are assigned to your Supabase user.
+            {priorityOnly
+              ? "Use Set priority on a job to add it to this list."
+              : "Leads created by your external source will appear here automatically once they are assigned to your Supabase user."}
           </p>
           <Button
             variant="outline"
@@ -122,8 +125,7 @@ export function JobLeadList({
           <JobLeadCard
             key={lead.id}
             lead={lead}
-            onUpdate={onUpdate}
-            onDelete={onDelete}
+            onSetPriority={onSetPriority}
             readOnly={readOnly}
           />
         ))}

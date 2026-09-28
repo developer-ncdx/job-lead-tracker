@@ -1,40 +1,60 @@
-import { ArrowUpRight, CalendarDays, Link2 } from "lucide-react"
+import { useState } from "react"
+import {
+  ArrowUpRight,
+  CalendarDays,
+  Link2,
+  LoaderCircle,
+  Star,
+} from "lucide-react"
+import { toast } from "sonner"
 
-import { DeleteLeadDialog } from "@/components/delete-lead-dialog"
-import { EditLeadDialog } from "@/components/edit-lead-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
-import type { JobLead, JobLeadUpdate } from "@/lib/database.types"
+import type { JobLead } from "@/lib/database.types"
+import { getErrorMessage } from "@/lib/errors"
+import { formatPhilippineDateTime } from "@/lib/philippine-time"
 
 type JobLeadCardProps = {
   lead: JobLead
-  onUpdate: (leadId: string, values: JobLeadUpdate) => Promise<void>
-  onDelete: (leadId: string) => Promise<void>
+  onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
   readOnly?: boolean
 }
 
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-})
-
 function formatPostedAt(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : dateTimeFormatter.format(date)
+  return formatPhilippineDateTime(value)
 }
 
 export function JobLeadCard({
   lead,
-  onUpdate,
-  onDelete,
+  onSetPriority,
   readOnly = false,
 }: JobLeadCardProps) {
+  const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const postedAt = lead.source_timestamp_at
     ? formatPostedAt(lead.source_timestamp_at)
     : null
+
+  async function handlePriority() {
+    setIsUpdatingPriority(true)
+
+    try {
+      await onSetPriority(lead.id, !lead.is_priority)
+      toast.success(
+        lead.is_priority
+          ? "Removed from priority"
+          : "Added to priority",
+      )
+    } catch (priorityError) {
+      toast.error(
+        getErrorMessage(
+          priorityError,
+          "We could not update this lead's priority.",
+        ),
+      )
+    } finally {
+      setIsUpdatingPriority(false)
+    }
+  }
 
   return (
     <Card className="gap-0 overflow-visible border-0 bg-white py-0 shadow-[0_8px_30px_-24px_rgba(62,45,31,0.55)] ring-1 ring-black/[0.07] transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_-26px_rgba(62,45,31,0.5)]">
@@ -72,8 +92,32 @@ export function JobLeadCard({
 
           {!readOnly && (
             <div className="col-span-2 mt-2 flex items-center justify-end gap-1 border-t pt-3 sm:col-span-1 sm:col-start-3 sm:row-span-3 sm:row-start-1 sm:mt-0 sm:border-0 sm:pt-0">
-              <EditLeadDialog lead={lead} onUpdate={onUpdate} />
-              <DeleteLeadDialog lead={lead} onDelete={onDelete} />
+              <Button
+                variant={lead.is_priority ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => void handlePriority()}
+                disabled={isUpdatingPriority}
+                aria-label={
+                  lead.is_priority
+                    ? `Remove ${lead.title} from priority`
+                    : `Add ${lead.title} to priority`
+                }
+                aria-pressed={lead.is_priority}
+                className={
+                  lead.is_priority
+                    ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
+                    : "text-muted-foreground"
+                }
+              >
+                {isUpdatingPriority ? (
+                  <LoaderCircle className="animate-spin" />
+                ) : (
+                  <Star
+                    className={lead.is_priority ? "fill-current" : ""}
+                  />
+                )}
+                {lead.is_priority ? "Priority" : "Set priority"}
+              </Button>
             </div>
           )}
         </CardHeader>

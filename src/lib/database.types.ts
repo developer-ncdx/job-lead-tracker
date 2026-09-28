@@ -23,6 +23,7 @@ export type Database = {
           company: string | null
           location: string | null
           is_remote: boolean | null
+          is_priority: boolean
           source_timestamp_at: string | null
           source_timestamp_kind: JobLeadTimestampKind | null
           first_seen_at: string
@@ -41,6 +42,7 @@ export type Database = {
           company?: string | null
           location?: string | null
           is_remote?: boolean | null
+          is_priority?: boolean
           source_timestamp_at?: string | null
           source_timestamp_kind?: JobLeadTimestampKind | null
           first_seen_at?: string
@@ -59,6 +61,7 @@ export type Database = {
           company?: string | null
           location?: string | null
           is_remote?: boolean | null
+          is_priority?: boolean
           source_timestamp_at?: string | null
           source_timestamp_kind?: JobLeadTimestampKind | null
           first_seen_at?: string

@@ -11,8 +11,13 @@ import {
   buildSupabaseRows,
   chunk,
   deduplicateJobs,
+  isRemoteOnlyJob,
   jobIdentity,
 } from "./job-sources/sync-utils.mjs"
+
+function matchesSyncCriteria(job) {
+  return matchesTargetRole(job) && isRemoteOnlyJob(job)
+}
 
 async function loadExistingLeads(client, userId, jobs) {
   const existingByIdentity = new Map()
@@ -102,7 +107,7 @@ export async function runJobSync({
   const fetchedJobs = sourceResults
     .filter((result) => result.status === "ok")
     .flatMap((result) => result.jobs)
-  const matchedJobs = fetchedJobs.filter(matchesTargetRole)
+  const matchedJobs = fetchedJobs.filter(matchesSyncCriteria)
   const jobs = deduplicateJobs(matchedJobs)
   const supabaseEnvironment = resolveSupabaseEnvironment(environment)
   const missingSupabaseValues = [
@@ -117,7 +122,7 @@ export async function runJobSync({
     fetched: result.jobs.length,
     matching:
       result.status === "ok"
-        ? result.jobs.filter(matchesTargetRole).length
+        ? result.jobs.filter(matchesSyncCriteria).length
         : 0,
     error: result.error,
   }))

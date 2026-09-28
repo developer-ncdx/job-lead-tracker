@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type {
   Database,
   JobLead,
-  JobLeadUpdate,
 } from "@/lib/database.types"
 import { getErrorMessage } from "@/lib/errors"
 
@@ -29,7 +28,12 @@ function parseTimestamp(...values: Array<string | null | undefined>) {
   return 0
 }
 
-export function sortJobLeadsByTimestamp(leads: JobLead[]) {
+export type JobLeadSortOrder = "newest" | "oldest"
+
+export function sortJobLeadsByTimestamp(
+  leads: JobLead[],
+  sortOrder: JobLeadSortOrder = "newest",
+) {
   return [...leads].sort((left, right) => {
     const rightTimestamp = parseTimestamp(
       right.source_timestamp_at,
@@ -42,7 +46,9 @@ export function sortJobLeadsByTimestamp(leads: JobLead[]) {
       left.created_at,
     )
 
-    return rightTimestamp - leftTimestamp || right.id.localeCompare(left.id)
+    return sortOrder === "newest"
+      ? rightTimestamp - leftTimestamp || right.id.localeCompare(left.id)
+      : leftTimestamp - rightTimestamp || left.id.localeCompare(right.id)
   })
 }
 
@@ -75,7 +81,7 @@ export function useJobLeads(
           let query = client
             .from("job_leads")
             .select(
-              "id, user_id, title, description, url, source, source_job_id, company, location, is_remote, source_timestamp_at, source_timestamp_kind, first_seen_at, last_seen_at, created_at, updated_at",
+              "id, user_id, title, description, url, source, source_job_id, company, location, is_remote, is_priority, source_timestamp_at, source_timestamp_kind, first_seen_at, last_seen_at, created_at, updated_at",
             )
 
           if (userId) {
@@ -182,61 +188,26 @@ export function useJobLeads(
     [fetchLeads],
   )
 
-  const updateLead = useCallback(
-    async (leadId: string, values: JobLeadUpdate) => {
+  const setPriority = useCallback(
+    async (leadId: string, isPriority: boolean) => {
       let query = client
         .from("job_leads")
-        .update(values)
+        .update({ is_priority: isPriority })
         .eq("id", leadId)
 
       if (userId) {
         query = query.eq("user_id", userId)
       }
 
-      const { data, error: updateError } = await query
+      const { data, error: priorityError } = await query
         .select("id")
         .maybeSingle()
 
-      if (updateError) {
+      if (priorityError) {
         throw new Error(
           getErrorMessage(
-            updateError,
-            "We could not update this lead. Please try again.",
-          ),
-        )
-      }
-
-      if (!data) {
-        throw new Error(
-          "This lead is no longer available. Refresh to load the latest results.",
-        )
-      }
-
-      await fetchLeads({ background: true })
-    },
-    [client, fetchLeads, userId],
-  )
-
-  const deleteLead = useCallback(
-    async (leadId: string) => {
-      let query = client
-        .from("job_leads")
-        .delete()
-        .eq("id", leadId)
-
-      if (userId) {
-        query = query.eq("user_id", userId)
-      }
-
-      const { data, error: deleteError } = await query
-        .select("id")
-        .maybeSingle()
-
-      if (deleteError) {
-        throw new Error(
-          getErrorMessage(
-            deleteError,
-            "We could not delete this lead. Please try again.",
+            priorityError,
+            "We could not update this lead's priority. Please try again.",
           ),
         )
       }
@@ -260,7 +231,6 @@ export function useJobLeads(
     realtimeWarning,
     lastSyncedAt,
     refresh,
-    updateLead,
-    deleteLead,
+    setPriority,
   }
 }
