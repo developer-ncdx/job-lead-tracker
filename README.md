@@ -176,6 +176,37 @@ computer/process is active; use a server scheduler or hosted cron for an
 always-on deployment. Each provider controls when its upstream data refreshes,
 so polling more often does not guarantee newer listings.
 
+## Run the sync with Vercel Cron
+
+The production deployment includes a protected Vercel Function at
+`/api/cron/sync-job-leads`. `vercel.json` invokes it at 00:00 and 12:00 UTC,
+which is 8:00 AM and 8:00 PM in the Philippines.
+
+Add these server-only variables under **Vercel → Project Settings →
+Environment Variables** for the Production environment, then redeploy:
+
+```dotenv
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+JOB_LEADS_OWNER_ID=
+CRON_SECRET=generate-at-least-16-random-characters
+
+# Optional
+JOOBLE_API_KEY=
+THE_MUSE_API_KEY=
+JOB_SOURCES_CONFIG=job-sources.config.json
+```
+
+Do not prefix server secrets with `VITE_`. Vercel automatically sends
+`CRON_SECRET` as a bearer token when it invokes the endpoint, and the function
+rejects requests without the matching token.
+
+After redeploying, verify the schedule under **Vercel → Project Settings →
+Cron Jobs** and use **View Logs** to inspect each run. The configured twice-daily
+schedule requires Vercel Pro or Enterprise; Hobby projects permit only one cron
+invocation per day. For Hobby, change the schedule in `vercel.json` to
+`0 0 * * *` before deploying.
+
 ## Add leads from an external source
 
 Public-mode leads can use a null owner:

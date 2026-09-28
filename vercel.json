@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/cron/sync-job-leads.mjs": {
+      "includeFiles": "job-sources.config.json",
+      "maxDuration": 300
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/sync-job-leads",
+      "schedule": "0 0,12 * * *"
+    }
+  ]
+}
