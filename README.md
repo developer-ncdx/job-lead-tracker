@@ -183,6 +183,12 @@ from Gmail over IMAP. It only reads recent messages, does not mark them as
 read, and sends extracted listings through the same target-role and
 remote-only filters as the public sources.
 
+When date enrichment is enabled, the importer accepts only an absolute
+`JobPosting.datePosted` timestamp published by the provider. Relative labels
+such as `Just posted` or `Reposted 2 days ago` are never converted into an
+invented timestamp; the date remains empty if the provider does not expose an
+absolute value.
+
 Configure a Gmail app password in `.env` (not the normal Google account
 password):
 

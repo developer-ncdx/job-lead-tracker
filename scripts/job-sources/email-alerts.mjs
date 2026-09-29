@@ -26,8 +26,8 @@ const PROVIDERS = Object.freeze([
 
 const GENERIC_LINK_TEXT =
   /^(?:apply(?: now)?|view(?: job)?|see (?:job|more|details)|learn more|read more|job alert|unsubscribe|manage|settings|click here)$/i
-const RELATIVE_POSTED_DATE =
-  /^(?:reposted\s+)?(?:just posted|today|yesterday|\d+\+?\s+(?:minutes?|hours?|days?|weeks?|months?)\s+ago)$/i
+const ABSOLUTE_TIMESTAMP =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i
 
 function decodeHtmlAttribute(value) {
   return String(value ?? "")
@@ -109,48 +109,6 @@ function normalizeProviderUrl(value) {
   }
 
   return null
-}
-
-export function parseRelativePostedAt(value, baseDate = new Date()) {
-  const text = cleanText(value).toLowerCase().replace(/^reposted\s+/, "")
-  const timestamp = new Date(baseDate)
-
-  if (Number.isNaN(timestamp.getTime()) || !RELATIVE_POSTED_DATE.test(text)) {
-    return null
-  }
-
-  if (text === "just posted" || text === "today") {
-    return timestamp.toISOString()
-  }
-
-  if (text === "yesterday") {
-    timestamp.setUTCDate(timestamp.getUTCDate() - 1)
-    return timestamp.toISOString()
-  }
-
-  const match = text.match(
-    /^(\d+)\+?\s+(minutes?|hours?|days?|weeks?|months?)\s+ago$/,
-  )
-
-  if (!match) {
-    return null
-  }
-
-  const amount = Number(match[1])
-  const unit = match[2]
-  const durationMs = amount * (
-    unit.startsWith("minute")
-      ? 60_000
-      : unit.startsWith("hour")
-        ? 3_600_000
-        : unit.startsWith("day")
-          ? 86_400_000
-          : unit.startsWith("week")
-            ? 7 * 86_400_000
-            : 30 * 86_400_000
-  )
-
-  return new Date(timestamp.getTime() - durationMs).toISOString()
 }
 
 function extractAnchors(html) {
@@ -244,32 +202,6 @@ function fallbackIdentity(messageId, url) {
     .slice(0, 32)
 }
 
-function extractTextPostingDates(text, messageDate) {
-  const lines = String(text ?? "").split(/\r?\n/)
-  const dates = new Map()
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const providerUrl = normalizeProviderUrl(lines[index].trim())
-
-    if (!providerUrl) {
-      continue
-    }
-
-    const relativeDate = lines
-      .slice(Math.max(0, index - 14), index)
-      .map((line) => cleanText(line))
-      .reverse()
-      .find((line) => RELATIVE_POSTED_DATE.test(line))
-    const postedAt = parseRelativePostedAt(relativeDate, messageDate)
-
-    if (postedAt) {
-      dates.set(`${providerUrl.source}:${providerUrl.sourceJobId}`, postedAt)
-    }
-  }
-
-  return dates
-}
-
 export function identifyEmailAlertProvider(addresses) {
   const normalized = addresses.map((address) => String(address).toLowerCase())
 
@@ -284,7 +216,6 @@ export function parseJobAlertEmail({
   html = "",
   text = "",
   messageId = "",
-  messageDate = new Date(),
 } = {}) {
   const addresses = from.map((entry) =>
     typeof entry === "string" ? entry : entry?.address,
@@ -299,7 +230,6 @@ export function parseJobAlertEmail({
   const links = html ? extractAnchors(body) : extractPlainUrls(body)
   const jobs = []
   const seen = new Set()
-  const textPostingDates = extractTextPostingDates(text, messageDate)
 
   for (const link of links) {
     const job = jobFromLink(link, body, subject)
@@ -314,13 +244,6 @@ export function parseJobAlertEmail({
 
     const identity = `${job.source}:${job.sourceJobId}`
     if (!seen.has(identity)) {
-      const postedAt = textPostingDates.get(identity)
-
-      if (postedAt) {
-        job.sourceTimestampAt = postedAt
-        job.sourceTimestampKind = "published"
-      }
-
       seen.add(identity)
       jobs.push(job)
     }
@@ -329,41 +252,92 @@ export function parseJobAlertEmail({
   return jobs
 }
 
-function extractLinkedInPostedText(html) {
-  const match = String(html).match(
-    /<span\b[^>]*class=["'][^"']*\bposted-time-ago__text\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i,
+function normalizeAbsoluteTimestamp(value) {
+  const candidate = String(value ?? "").trim()
+
+  if (!ABSOLUTE_TIMESTAMP.test(candidate)) {
+    return null
+  }
+
+  const timestamp = new Date(candidate)
+  return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString()
+}
+
+function findJobPostingDate(value) {
+  if (Array.isArray(value)) {
+    return value.map(findJobPostingDate).find(Boolean) ?? null
+  }
+
+  if (!value || typeof value !== "object") {
+    return null
+  }
+
+  const types = Array.isArray(value["@type"])
+    ? value["@type"]
+    : [value["@type"]]
+
+  if (types.includes("JobPosting")) {
+    return normalizeAbsoluteTimestamp(value.datePosted)
+  }
+
+  return Object.values(value).map(findJobPostingDate).find(Boolean) ?? null
+}
+
+export function extractExactPostedAt(html) {
+  const scripts = String(html).matchAll(
+    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
   )
 
-  return match ? cleanText(match[1]) : ""
+  for (const match of scripts) {
+    try {
+      const postedAt = findJobPostingDate(JSON.parse(match[1]))
+
+      if (postedAt) {
+        return postedAt
+      }
+    } catch {
+      // Ignore malformed structured data and continue looking for JobPosting JSON-LD.
+    }
+  }
+
+  return null
+}
+
+function providerPostingUrl(job) {
+  if (job.source === "linkedin-email") {
+    return `https://www.linkedin.com/jobs/view/${job.sourceJobId}`
+  }
+
+  return job.url
 }
 
 export async function enrichEmailAlertPostedDates(
   jobs,
-  { fetchImpl = fetch, observedAt = new Date() } = {},
+  { fetchImpl = fetch } = {},
 ) {
   const postedDates = new Map()
   const pending = [...new Map(
     jobs
-      .filter(
-        (job) => job.source === "linkedin-email" && !job.sourceTimestampAt,
-      )
+      .filter((job) => !job.sourceTimestampAt)
       .map((job) => [`${job.source}:${job.sourceJobId}`, job]),
   ).values()]
 
-  for (let index = 0; index < pending.length; index += 6) {
-    const batch = pending.slice(index, index + 6)
+  for (let index = 0; index < pending.length; index += 3) {
+    const batch = pending.slice(index, index + 3)
 
     await Promise.all(
       batch.map(async (job) => {
         try {
           const response = await fetchImpl(
-            `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${job.sourceJobId}`,
+            providerPostingUrl(job),
             {
-            headers: {
-              "user-agent": "Mozilla/5.0 (compatible; JobLeadTracker/1.0)",
-            },
-            redirect: "follow",
-            signal: AbortSignal.timeout(15_000),
+              headers: {
+                accept: "text/html,application/xhtml+xml",
+                "accept-language": "en-US,en;q=0.9",
+                "user-agent": "curl/8.7.1",
+              },
+              redirect: "follow",
+              signal: AbortSignal.timeout(15_000),
             },
           )
 
@@ -372,10 +346,7 @@ export async function enrichEmailAlertPostedDates(
           }
 
           const html = await response.text()
-          const postedAt = parseRelativePostedAt(
-            extractLinkedInPostedText(html),
-            observedAt,
-          )
+          const postedAt = extractExactPostedAt(html)
 
           if (postedAt) {
             postedDates.set(`${job.source}:${job.sourceJobId}`, postedAt)

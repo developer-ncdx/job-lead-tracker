@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   enrichEmailAlertPostedDates,
+  extractExactPostedAt,
   identifyEmailAlertProvider,
   parseJobAlertEmail,
-  parseRelativePostedAt,
   resolveEmailAlertEnvironment,
 } from "./email-alerts.mjs"
 
@@ -61,7 +61,6 @@ describe("email job alerts", () => {
         2 days ago
         https://www.indeed.com/viewjob?jk=abc123
       `,
-      messageDate: "2026-09-29T12:00:00.000Z",
     })
 
     expect(jobs).toHaveLength(1)
@@ -71,22 +70,27 @@ describe("email job alerts", () => {
       title: "AI Automation & Shopify Developer",
       url: "https://www.indeed.com/viewjob?jk=abc123",
       isRemote: true,
-      sourceTimestampAt: "2026-09-27T12:00:00.000Z",
-      sourceTimestampKind: "published",
+      sourceTimestampAt: null,
+      sourceTimestampKind: null,
     })
   })
 
-  it("converts provider-relative posting dates", () => {
-    const baseDate = "2026-09-29T12:00:00.000Z"
-
-    expect(parseRelativePostedAt("Just posted", baseDate)).toBe(baseDate)
-    expect(parseRelativePostedAt("yesterday", baseDate)).toBe(
-      "2026-09-28T12:00:00.000Z",
-    )
-    expect(parseRelativePostedAt("3 weeks ago", baseDate)).toBe(
-      "2026-09-08T12:00:00.000Z",
-    )
-    expect(parseRelativePostedAt("unknown", baseDate)).toBeNull()
+  it("accepts only an exact absolute JobPosting date", () => {
+    expect(
+      extractExactPostedAt(`
+        <script type="application/ld+json">
+          {"@type":"JobPosting","datePosted":"2026-09-27T09:01:19.000Z"}
+        </script>
+      `),
+    ).toBe("2026-09-27T09:01:19.000Z")
+    expect(
+      extractExactPostedAt(`
+        <script type="application/ld+json">
+          {"@type":"JobPosting","datePosted":"2026-09-27"}
+        </script>
+      `),
+    ).toBeNull()
+    expect(extractExactPostedAt("<p>Reposted 2 days ago</p>")).toBeNull()
   })
 
   it("enriches LinkedIn jobs from public-page posted metadata", async () => {
@@ -101,16 +105,17 @@ describe("email job alerts", () => {
         },
       ],
       {
-        observedAt: "2026-09-29T12:00:00.000Z",
         fetchImpl: async () =>
           new Response(
-            '<span class="posted-time-ago__text topcard__flavor--metadata">3 days ago</span>',
+            '<script type="application/ld+json">' +
+              '{"@type":"JobPosting","datePosted":"2026-09-27T09:01:19.000Z"}' +
+              "</script>",
           ),
       },
     )
 
     expect(jobs[0]).toMatchObject({
-      sourceTimestampAt: "2026-09-26T12:00:00.000Z",
+      sourceTimestampAt: "2026-09-27T09:01:19.000Z",
       sourceTimestampKind: "published",
     })
   })
@@ -127,6 +132,31 @@ describe("email job alerts", () => {
         },
       ],
       { fetchImpl: async () => new Response("", { status: 429 }) },
+    )
+
+    expect(jobs[0]).toMatchObject({
+      sourceTimestampAt: null,
+      sourceTimestampKind: null,
+    })
+  })
+
+  it("does not convert LinkedIn relative wording into an exact timestamp", async () => {
+    const jobs = await enrichEmailAlertPostedDates(
+      [
+        {
+          source: "linkedin-email",
+          sourceJobId: "4427682709",
+          url: "https://www.linkedin.com/jobs/view/4427682709",
+          sourceTimestampAt: null,
+          sourceTimestampKind: null,
+        },
+      ],
+      {
+        fetchImpl: async () =>
+          new Response(
+            '<span class="posted-time-ago__text">Reposted 2 days ago</span>',
+          ),
+      },
     )
 
     expect(jobs[0]).toMatchObject({
