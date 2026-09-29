@@ -50,6 +50,8 @@ export function createCronHandler({
           unique: summary.unique,
           written: summary.written,
           existing: summary.existing ?? 0,
+          linkedinTimestampBackfill:
+            summary.linkedinTimestampBackfill ?? null,
           sources: summary.sourceSummaries,
         },
         { status: failedSources.length === 0 ? 200 : 502 },

@@ -87,9 +87,10 @@ export function JobLeadCard({
           {postedAt && (
             <span className="col-start-2 row-start-3 flex items-center gap-1.5 text-xs text-muted-foreground">
               <CalendarDays className="size-3.5" aria-hidden="true" />
-              Posted{" "}
               <time dateTime={lead.source_timestamp_at ?? undefined}>
-                {postedAt}
+                {lead.source === "linkedin-email"
+                  ? postedAt
+                  : `Posted ${postedAt}`}
               </time>
             </span>
           )}

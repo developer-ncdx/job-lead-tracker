@@ -6,6 +6,7 @@ import {
   loadSourceConfig,
 } from "./job-sources/config.mjs"
 import { fetchConfiguredSourceResults } from "./job-sources/index.mjs"
+import { backfillLinkedInTimestamps } from "./job-sources/linkedin-timestamp-backfill.mjs"
 import { matchesTargetRole } from "./job-sources/role-filter.mjs"
 import {
   buildSupabaseRows,
@@ -170,6 +171,27 @@ export async function runJobSync({
 
   await upsertLeads(client, rows)
 
+  const linkedinTimestampBackfill = await backfillLinkedInTimestamps(
+    client,
+    {
+      fetchImpl,
+      limit: environment.JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT,
+    },
+  )
+  const backfillFailureCount = linkedinTimestampBackfill.failures.length
+
+  sourceSummaries.push({
+    source: "linkedin-email",
+    name: "linkedin-email:timestamp-backfill",
+    status: backfillFailureCount > 0 ? "failed" : "ok",
+    fetched: linkedinTimestampBackfill.attempted,
+    matching: linkedinTimestampBackfill.updated,
+    error:
+      backfillFailureCount > 0
+        ? `${backfillFailureCount} LinkedIn page request(s) failed`
+        : null,
+  })
+
   return {
     dryRun: false,
     sourceSummaries,
@@ -180,6 +202,7 @@ export async function runJobSync({
     existing: jobs.filter((job) =>
       existingByIdentity.has(jobIdentity(job)),
     ).length,
+    linkedinTimestampBackfill,
     missingSupabaseValues: [],
     jobs: [],
   }

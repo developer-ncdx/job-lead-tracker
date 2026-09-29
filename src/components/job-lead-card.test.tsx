@@ -92,6 +92,23 @@ describe("JobLeadCard", () => {
     expect(screen.queryByText(/first seen/i)).not.toBeInTheDocument()
   })
 
+  it("shows only the exact time for a LinkedIn posting", () => {
+    const { container } = render(
+      <JobLeadCard
+        lead={{
+          ...lead,
+          source: "linkedin-email",
+        }}
+        onSetPriority={vi.fn()}
+      />,
+    )
+
+    expect(container.querySelector("time")).toHaveTextContent(
+      "Sep 20, 2026, 4:00 PM PHT",
+    )
+    expect(screen.queryByText(/posted sep/i)).not.toBeInTheDocument()
+  })
+
   it("does not present first-seen time as the provider posting date", () => {
     const { container } = render(
       <JobLeadCard

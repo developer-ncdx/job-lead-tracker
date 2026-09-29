@@ -39,6 +39,7 @@ Open the Supabase SQL Editor and run these files in order:
 3. `supabase/migrations/003_temporary_public_crud.sql`
 4. `supabase/migrations/004_public_imports_without_auth.sql`
 5. `supabase/migrations/005_job_lead_priorities.sql`
+6. `supabase/migrations/20260929150440_add_source_timestamp_label.sql`
 
 The migrations create the `job_leads` table, source metadata, timestamp
 semantics, duplicate constraint, trigger, Realtime publication entry, grants,
@@ -245,6 +246,7 @@ JOB_ALERT_MAILBOX=INBOX
 JOB_ALERT_LOOKBACK_DAYS=14
 JOB_ALERT_MAX_MESSAGES=100
 JOB_ALERT_ENRICH_POSTED_DATES=true
+JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT=50
 JOB_SYNC_FAILURE_EMAIL_TO=noxpwr@gmail.com
 JOB_SYNC_SMTP_HOST=smtp.gmail.com
 JOB_SYNC_SMTP_PORT=465
@@ -258,6 +260,16 @@ rejects requests without the matching token.
 The failure notifier sends through Gmail SMTP using the same Gmail address and
 app password as the IMAP importer. `JOB_SYNC_FAILURE_EMAIL_TO` defaults to
 `JOB_ALERT_EMAIL_USER` when omitted.
+
+Each hourly run also revisits up to
+`JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT` existing LinkedIn rows whose provider
+time is empty. It stores only an exact timestamp or relative label returned by
+LinkedIn; it never substitutes the email receipt or ingestion time. Run the
+same idempotent backfill manually with:
+
+```bash
+npm run jobs:backfill:linkedin-dates
+```
 
 After redeploying, verify the schedule under **Vercel → Project Settings →
 Cron Jobs** and use **View Logs** to inspect each run. The configured hourly

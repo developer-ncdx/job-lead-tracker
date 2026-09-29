@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "jobs:probe": "node scripts/probe-job-apis.mjs",
     "jobs:email:probe": "node scripts/probe-job-alert-emails.mjs",
+    "jobs:backfill:linkedin-dates": "node scripts/backfill-linkedin-timestamps.mjs",
     "jobs:sync": "node scripts/sync-job-leads.mjs",
     "jobs:sync:dry": "node scripts/sync-job-leads.mjs --dry-run",
     "jobs:watch": "node scripts/watch-job-leads.mjs"
