@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  enrichEmailAlertPostedDates,
   identifyEmailAlertProvider,
   parseJobAlertEmail,
+  parseRelativePostedAt,
   resolveEmailAlertEnvironment,
 } from "./email-alerts.mjs"
 
@@ -53,6 +55,13 @@ describe("email job alerts", () => {
         <p>ByLashBabe · Remote, Philippines</p>
         <a href="https://www.indeed.com/account/view">Manage settings</a>
       `,
+      text: `
+        AI Automation & Shopify Developer
+        ByLashBabe - Work from Home
+        2 days ago
+        https://www.indeed.com/viewjob?jk=abc123
+      `,
+      messageDate: "2026-09-29T12:00:00.000Z",
     })
 
     expect(jobs).toHaveLength(1)
@@ -62,6 +71,68 @@ describe("email job alerts", () => {
       title: "AI Automation & Shopify Developer",
       url: "https://www.indeed.com/viewjob?jk=abc123",
       isRemote: true,
+      sourceTimestampAt: "2026-09-27T12:00:00.000Z",
+      sourceTimestampKind: "published",
+    })
+  })
+
+  it("converts provider-relative posting dates", () => {
+    const baseDate = "2026-09-29T12:00:00.000Z"
+
+    expect(parseRelativePostedAt("Just posted", baseDate)).toBe(baseDate)
+    expect(parseRelativePostedAt("yesterday", baseDate)).toBe(
+      "2026-09-28T12:00:00.000Z",
+    )
+    expect(parseRelativePostedAt("3 weeks ago", baseDate)).toBe(
+      "2026-09-08T12:00:00.000Z",
+    )
+    expect(parseRelativePostedAt("unknown", baseDate)).toBeNull()
+  })
+
+  it("enriches LinkedIn jobs from public-page posted metadata", async () => {
+    const jobs = await enrichEmailAlertPostedDates(
+      [
+        {
+          source: "linkedin-email",
+          sourceJobId: "4261234567",
+          url: "https://www.linkedin.com/jobs/view/4261234567",
+          sourceTimestampAt: null,
+          sourceTimestampKind: null,
+        },
+      ],
+      {
+        observedAt: "2026-09-29T12:00:00.000Z",
+        fetchImpl: async () =>
+          new Response(
+            '<span class="posted-time-ago__text topcard__flavor--metadata">3 days ago</span>',
+          ),
+      },
+    )
+
+    expect(jobs[0]).toMatchObject({
+      sourceTimestampAt: "2026-09-26T12:00:00.000Z",
+      sourceTimestampKind: "published",
+    })
+  })
+
+  it("falls back to the LinkedIn alert time when page metadata is unavailable", async () => {
+    const jobs = await enrichEmailAlertPostedDates(
+      [
+        {
+          source: "linkedin-email",
+          sourceJobId: "4261234567",
+          url: "https://www.linkedin.com/jobs/view/4261234567",
+          emailReceivedAt: "2026-09-29T11:23:29.000Z",
+          sourceTimestampAt: null,
+          sourceTimestampKind: null,
+        },
+      ],
+      { fetchImpl: async () => new Response("", { status: 429 }) },
+    )
+
+    expect(jobs[0]).toMatchObject({
+      sourceTimestampAt: "2026-09-29T11:23:29.000Z",
+      sourceTimestampKind: "published",
     })
   })
 

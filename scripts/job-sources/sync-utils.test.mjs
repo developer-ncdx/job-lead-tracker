@@ -134,4 +134,29 @@ describe("job sync utilities", () => {
       last_seen_at: "2026-09-24T01:00:00.000Z",
     })
   })
+
+  it("preserves an existing source date when enrichment is unavailable", () => {
+    const jobWithoutDate = {
+      ...greenhouseJob,
+      sourceTimestampAt: null,
+      sourceTimestampKind: null,
+    }
+    const existingByIdentity = new Map([
+      [
+        jobIdentity(jobWithoutDate),
+        {
+          source_timestamp_at: "2026-09-23T10:00:00.000Z",
+          source_timestamp_kind: "published",
+        },
+      ],
+    ])
+    const [row] = buildSupabaseRows([jobWithoutDate], null, {
+      existingByIdentity,
+    })
+
+    expect(row).toMatchObject({
+      source_timestamp_at: "2026-09-23T10:00:00.000Z",
+      source_timestamp_kind: "published",
+    })
+  })
 })

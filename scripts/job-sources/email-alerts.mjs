@@ -26,6 +26,8 @@ const PROVIDERS = Object.freeze([
 
 const GENERIC_LINK_TEXT =
   /^(?:apply(?: now)?|view(?: job)?|see (?:job|more|details)|learn more|read more|job alert|unsubscribe|manage|settings|click here)$/i
+const RELATIVE_POSTED_DATE =
+  /^(?:reposted\s+)?(?:just posted|today|yesterday|\d+\+?\s+(?:minutes?|hours?|days?|weeks?|months?)\s+ago)$/i
 
 function decodeHtmlAttribute(value) {
   return String(value ?? "")
@@ -107,6 +109,48 @@ function normalizeProviderUrl(value) {
   }
 
   return null
+}
+
+export function parseRelativePostedAt(value, baseDate = new Date()) {
+  const text = cleanText(value).toLowerCase().replace(/^reposted\s+/, "")
+  const timestamp = new Date(baseDate)
+
+  if (Number.isNaN(timestamp.getTime()) || !RELATIVE_POSTED_DATE.test(text)) {
+    return null
+  }
+
+  if (text === "just posted" || text === "today") {
+    return timestamp.toISOString()
+  }
+
+  if (text === "yesterday") {
+    timestamp.setUTCDate(timestamp.getUTCDate() - 1)
+    return timestamp.toISOString()
+  }
+
+  const match = text.match(
+    /^(\d+)\+?\s+(minutes?|hours?|days?|weeks?|months?)\s+ago$/,
+  )
+
+  if (!match) {
+    return null
+  }
+
+  const amount = Number(match[1])
+  const unit = match[2]
+  const durationMs = amount * (
+    unit.startsWith("minute")
+      ? 60_000
+      : unit.startsWith("hour")
+        ? 3_600_000
+        : unit.startsWith("day")
+          ? 86_400_000
+          : unit.startsWith("week")
+            ? 7 * 86_400_000
+            : 30 * 86_400_000
+  )
+
+  return new Date(timestamp.getTime() - durationMs).toISOString()
 }
 
 function extractAnchors(html) {
@@ -200,6 +244,32 @@ function fallbackIdentity(messageId, url) {
     .slice(0, 32)
 }
 
+function extractTextPostingDates(text, messageDate) {
+  const lines = String(text ?? "").split(/\r?\n/)
+  const dates = new Map()
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const providerUrl = normalizeProviderUrl(lines[index].trim())
+
+    if (!providerUrl) {
+      continue
+    }
+
+    const relativeDate = lines
+      .slice(Math.max(0, index - 14), index)
+      .map((line) => cleanText(line))
+      .reverse()
+      .find((line) => RELATIVE_POSTED_DATE.test(line))
+    const postedAt = parseRelativePostedAt(relativeDate, messageDate)
+
+    if (postedAt) {
+      dates.set(`${providerUrl.source}:${providerUrl.sourceJobId}`, postedAt)
+    }
+  }
+
+  return dates
+}
+
 export function identifyEmailAlertProvider(addresses) {
   const normalized = addresses.map((address) => String(address).toLowerCase())
 
@@ -214,6 +284,7 @@ export function parseJobAlertEmail({
   html = "",
   text = "",
   messageId = "",
+  messageDate = new Date(),
 } = {}) {
   const addresses = from.map((entry) =>
     typeof entry === "string" ? entry : entry?.address,
@@ -228,6 +299,11 @@ export function parseJobAlertEmail({
   const links = html ? extractAnchors(body) : extractPlainUrls(body)
   const jobs = []
   const seen = new Set()
+  const textPostingDates = extractTextPostingDates(text, messageDate)
+  const emailReceivedAt = new Date(messageDate)
+  const normalizedEmailReceivedAt = Number.isNaN(emailReceivedAt.getTime())
+    ? null
+    : emailReceivedAt.toISOString()
 
   for (const link of links) {
     const job = jobFromLink(link, body, subject)
@@ -242,12 +318,91 @@ export function parseJobAlertEmail({
 
     const identity = `${job.source}:${job.sourceJobId}`
     if (!seen.has(identity)) {
+      const postedAt = textPostingDates.get(identity)
+
+      if (postedAt) {
+        job.sourceTimestampAt = postedAt
+        job.sourceTimestampKind = "published"
+      }
+
+      job.emailReceivedAt = normalizedEmailReceivedAt
+
       seen.add(identity)
       jobs.push(job)
     }
   }
 
   return jobs
+}
+
+function extractLinkedInPostedText(html) {
+  const match = String(html).match(
+    /<span\b[^>]*class=["'][^"']*\bposted-time-ago__text\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i,
+  )
+
+  return match ? cleanText(match[1]) : ""
+}
+
+export async function enrichEmailAlertPostedDates(
+  jobs,
+  { fetchImpl = fetch, observedAt = new Date() } = {},
+) {
+  const postedDates = new Map()
+  const pending = [...new Map(
+    jobs
+      .filter(
+        (job) => job.source === "linkedin-email" && !job.sourceTimestampAt,
+      )
+      .map((job) => [`${job.source}:${job.sourceJobId}`, job]),
+  ).values()]
+
+  for (let index = 0; index < pending.length; index += 6) {
+    const batch = pending.slice(index, index + 6)
+
+    await Promise.all(
+      batch.map(async (job) => {
+        try {
+          const response = await fetchImpl(job.url, {
+            headers: {
+              "user-agent": "Mozilla/5.0 (compatible; JobLeadTracker/1.0)",
+            },
+            redirect: "follow",
+            signal: AbortSignal.timeout(15_000),
+          })
+
+          if (!response.ok) {
+            return
+          }
+
+          const html = await response.text()
+          const postedAt = parseRelativePostedAt(
+            extractLinkedInPostedText(html),
+            observedAt,
+          )
+
+          if (postedAt) {
+            postedDates.set(`${job.source}:${job.sourceJobId}`, postedAt)
+          }
+        } catch {
+          // A missing page date should not fail the complete email sync.
+        }
+      }),
+    )
+  }
+
+  return jobs.map((job) => {
+    const postedAt =
+      postedDates.get(`${job.source}:${job.sourceJobId}`) ??
+      (job.source === "linkedin-email" ? job.emailReceivedAt : null)
+
+    return postedAt
+      ? {
+          ...job,
+          sourceTimestampAt: postedAt,
+          sourceTimestampKind: "published",
+        }
+      : job
+  })
 }
 
 export function resolveEmailAlertEnvironment(environment = process.env) {
@@ -270,6 +425,8 @@ export function resolveEmailAlertEnvironment(environment = process.env) {
     mailbox: environment.JOB_ALERT_MAILBOX?.trim() || "INBOX",
     lookbackDays: Math.max(1, Number(environment.JOB_ALERT_LOOKBACK_DAYS || 14)),
     maxMessages: Math.max(1, Number(environment.JOB_ALERT_MAX_MESSAGES || 100)),
+    enrichPostedDates:
+      environment.JOB_ALERT_ENRICH_POSTED_DATES !== "false",
   }
 }
 
@@ -328,11 +485,14 @@ export async function fetchEmailAlertJobs(
           html: typeof parsed.html === "string" ? parsed.html : "",
           text: parsed.text ?? "",
           messageId: parsed.messageId ?? String(message.uid),
+          messageDate: parsed.date ?? message.envelope?.date ?? new Date(),
         }),
       )
     }
 
-    return jobs
+    return settings.enrichPostedDates
+      ? enrichEmailAlertPostedDates(jobs)
+      : jobs
   } catch (error) {
     if (error?.authenticationFailed) {
       throw new Error(

@@ -140,8 +140,10 @@ export function buildSupabaseRows(
       company: job.company || null,
       location: job.location || null,
       is_remote: job.isRemote,
-      source_timestamp_at: job.sourceTimestampAt,
-      source_timestamp_kind: job.sourceTimestampKind,
+      source_timestamp_at:
+        job.sourceTimestampAt ?? existing?.source_timestamp_at ?? null,
+      source_timestamp_kind:
+        job.sourceTimestampKind ?? existing?.source_timestamp_kind ?? null,
       first_seen_at: existing?.first_seen_at ?? observedAt,
       last_seen_at: observedAt,
     }

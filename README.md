@@ -196,6 +196,7 @@ JOB_ALERT_EMAIL_APP_PASSWORD=your-16-character-app-password
 JOB_ALERT_MAILBOX=INBOX
 JOB_ALERT_LOOKBACK_DAYS=14
 JOB_ALERT_MAX_MESSAGES=100
+JOB_ALERT_ENRICH_POSTED_DATES=true
 ```
 
 Test extraction locally without writing to Supabase:
@@ -236,6 +237,7 @@ JOB_ALERT_EMAIL_APP_PASSWORD=your-16-character-app-password
 JOB_ALERT_MAILBOX=INBOX
 JOB_ALERT_LOOKBACK_DAYS=14
 JOB_ALERT_MAX_MESSAGES=100
+JOB_ALERT_ENRICH_POSTED_DATES=true
 ```
 
 Do not prefix server secrets with `VITE_`. Vercel automatically sends

@@ -34,7 +34,7 @@ async function loadExistingLeads(client, userId, jobs) {
       let query = client
         .from("job_leads")
         .select(
-          "source, source_job_id, title, description, url, first_seen_at",
+          "source, source_job_id, title, description, url, source_timestamp_at, source_timestamp_kind, first_seen_at",
         )
         .eq("source", source)
         .in(
