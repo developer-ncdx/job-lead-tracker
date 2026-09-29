@@ -31,6 +31,9 @@ const SOURCE_PRIORITY = Object.freeze({
   ayla: 2,
   nomado24: 3,
   jooble: 2,
+  "linkedin-email": 2,
+  "indeed-email": 2,
+  "onlinejobsph-email": 2,
 })
 
 export function jobIdentity(job) {

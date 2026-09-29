@@ -176,6 +176,38 @@ computer/process is active; use a server scheduler or hosted cron for an
 always-on deployment. Each provider controls when its upstream data refreshes,
 so polling more often does not guarantee newer listings.
 
+## Import job-alert emails
+
+The sync can also read LinkedIn, Indeed, and OnlineJobs.ph job-alert messages
+from Gmail over IMAP. It only reads recent messages, does not mark them as
+read, and sends extracted listings through the same target-role and
+remote-only filters as the public sources.
+
+Configure a Gmail app password in `.env` (not the normal Google account
+password):
+
+```dotenv
+JOB_ALERT_EMAIL_ENABLED=true
+JOB_ALERT_IMAP_HOST=imap.gmail.com
+JOB_ALERT_IMAP_PORT=993
+JOB_ALERT_IMAP_SECURE=true
+JOB_ALERT_EMAIL_USER=your-gmail-address@gmail.com
+JOB_ALERT_EMAIL_APP_PASSWORD=your-16-character-app-password
+JOB_ALERT_MAILBOX=INBOX
+JOB_ALERT_LOOKBACK_DAYS=14
+JOB_ALERT_MAX_MESSAGES=100
+```
+
+Test extraction locally without writing to Supabase:
+
+```bash
+npm run jobs:email:probe
+```
+
+An OnlineJobs.ph registration or confirmation message contains no job
+listings, so it correctly produces zero leads. The importer will begin
+extracting that source when actual OnlineJobs.ph job-alert messages arrive.
+
 ## Run the sync with Vercel Cron
 
 The production deployment includes a protected Vercel Function at
@@ -195,6 +227,15 @@ CRON_SECRET=generate-at-least-16-random-characters
 JOOBLE_API_KEY=
 THE_MUSE_API_KEY=
 JOB_SOURCES_CONFIG=job-sources.config.json
+JOB_ALERT_EMAIL_ENABLED=true
+JOB_ALERT_IMAP_HOST=imap.gmail.com
+JOB_ALERT_IMAP_PORT=993
+JOB_ALERT_IMAP_SECURE=true
+JOB_ALERT_EMAIL_USER=your-gmail-address@gmail.com
+JOB_ALERT_EMAIL_APP_PASSWORD=your-16-character-app-password
+JOB_ALERT_MAILBOX=INBOX
+JOB_ALERT_LOOKBACK_DAYS=14
+JOB_ALERT_MAX_MESSAGES=100
 ```
 
 Do not prefix server secrets with `VITE_`. Vercel automatically sends
@@ -238,6 +279,7 @@ npm run test:watch # Run tests in watch mode
 npm run build      # Type-check and create a production build
 npm run preview    # Preview the production build
 npm run jobs:probe # Test configured job APIs without database writes
+npm run jobs:email:probe # Test Gmail job alerts without database writes
 npm run jobs:sync:dry # Run ingestion without database writes
 npm run jobs:sync  # Fetch and upsert matching jobs
 npm run jobs:watch # Repeat sync at the configured interval
