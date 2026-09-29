@@ -17,10 +17,11 @@ export function ConfigurationScreen({
   message,
 }: ConfigurationScreenProps) {
   return (
-    <main className="flex min-h-svh items-center justify-center bg-[#f6f4ef] px-5 py-12">
-      <Card className="w-full max-w-lg gap-0 border-0 bg-white py-0 shadow-[0_24px_70px_-32px_rgba(62,45,31,0.3)] ring-1 ring-black/6">
+    <main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-100/80 px-5 py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(56,189,248,0.24),transparent_30%),radial-gradient(circle_at_90%_85%,rgba(99,102,241,0.15),transparent_30%)]" />
+      <Card className="relative w-full max-w-lg gap-0 border-0 bg-gradient-to-br from-white/95 to-sky-50/90 py-0 shadow-[0_28px_80px_-34px_rgba(2,132,199,0.38)] ring-1 ring-sky-200/75 backdrop-blur-xl">
         <CardHeader className="gap-3 px-6 pt-7 pb-5 sm:px-8 sm:pt-8">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[#f3e5d8] text-[#b85d2c]">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-blue-200 text-sky-700 shadow-inner">
             <FileKey2 className="size-5" aria-hidden="true" />
           </div>
           <div className="space-y-1.5">
@@ -42,7 +43,7 @@ export function ConfigurationScreen({
             </AlertDescription>
           </Alert>
 
-          <div className="rounded-xl border bg-[#faf9f6] p-4 text-sm">
+          <div className="rounded-xl border border-sky-200 bg-white/70 p-4 text-sm shadow-inner">
             <p className="mb-2 font-medium">Expected in .env.local</p>
             <code className="block break-all font-mono text-xs leading-6 text-muted-foreground">
               VITE_SUPABASE_URL=...

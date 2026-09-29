@@ -59,13 +59,14 @@ export function AuthScreen({ client }: AuthScreenProps) {
   }
 
   return (
-    <main className="relative min-h-svh overflow-hidden bg-[#f6f4ef]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(231,154,85,0.16),transparent_28%),radial-gradient(circle_at_90%_85%,rgba(116,133,99,0.12),transparent_32%)]" />
+    <main className="relative min-h-svh overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-100/80">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(56,189,248,0.26),transparent_28%),radial-gradient(circle_at_88%_82%,rgba(99,102,241,0.17),transparent_32%)]" />
+      <div className="pointer-events-none absolute -top-28 right-1/4 size-72 rounded-full bg-cyan-200/25 blur-3xl" />
 
       <div className="relative mx-auto grid min-h-svh max-w-6xl items-center gap-12 px-5 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
         <section className="hidden max-w-xl lg:block">
           <div className="mb-10 flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#d96f32] text-white shadow-sm">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-500 text-white shadow-[0_10px_25px_-10px_rgba(14,165,233,0.85)] ring-1 ring-white/70">
               <BriefcaseBusiness className="size-5" aria-hidden="true" />
             </div>
             <span className="text-sm font-semibold tracking-tight">
@@ -73,24 +74,24 @@ export function AuthScreen({ client }: AuthScreenProps) {
             </span>
           </div>
 
-          <p className="mb-4 text-xs font-semibold tracking-[0.18em] text-[#a34f25] uppercase">
+          <p className="mb-4 text-xs font-semibold tracking-[0.18em] text-sky-700 uppercase">
             A quieter way to stay organized
           </p>
-          <h1 className="max-w-lg text-5xl leading-[1.05] font-semibold tracking-[-0.045em] text-balance text-[#302820]">
+          <h1 className="max-w-lg bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-5xl leading-[1.05] font-semibold tracking-[-0.045em] text-balance text-transparent">
             Every promising role, in one focused place.
           </h1>
-          <p className="mt-6 max-w-md text-base leading-7 text-[#6e6257]">
+          <p className="mt-6 max-w-md text-base leading-7 text-slate-600">
             Review the leads collected in Supabase, refine the details, and
             move on to the next opportunity.
           </p>
 
-          <div className="mt-10 flex flex-wrap gap-3 text-sm text-[#5d534a]">
-            <div className="flex items-center gap-2 rounded-full border border-[#ded8ce] bg-white/65 px-3 py-2">
-              <DatabaseZap className="size-4 text-[#b85d2c]" />
+          <div className="mt-10 flex flex-wrap gap-3 text-sm text-slate-600">
+            <div className="flex items-center gap-2 rounded-full border border-sky-200/80 bg-white/65 px-3 py-2 shadow-sm backdrop-blur">
+              <DatabaseZap className="size-4 text-sky-600" />
               Live Supabase sync
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-[#ded8ce] bg-white/65 px-3 py-2">
-              <ShieldCheck className="size-4 text-[#6e7c60]" />
+            <div className="flex items-center gap-2 rounded-full border border-sky-200/80 bg-white/65 px-3 py-2 shadow-sm backdrop-blur">
+              <ShieldCheck className="size-4 text-blue-600" />
               Private to your account
             </div>
           </div>
@@ -98,7 +99,7 @@ export function AuthScreen({ client }: AuthScreenProps) {
 
         <section className="mx-auto w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#d96f32] text-white shadow-sm">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-500 text-white shadow-[0_10px_25px_-10px_rgba(14,165,233,0.85)] ring-1 ring-white/70">
               <BriefcaseBusiness className="size-5" aria-hidden="true" />
             </div>
             <span className="text-sm font-semibold tracking-tight">
@@ -106,7 +107,7 @@ export function AuthScreen({ client }: AuthScreenProps) {
             </span>
           </div>
 
-          <Card className="gap-0 border-0 bg-white/92 py-0 shadow-[0_24px_70px_-30px_rgba(62,45,31,0.35)] ring-1 ring-black/6 backdrop-blur">
+          <Card className="gap-0 border-0 bg-gradient-to-br from-white/95 to-sky-50/90 py-0 shadow-[0_28px_80px_-34px_rgba(2,132,199,0.38)] ring-1 ring-sky-200/75 backdrop-blur-xl">
             <CardHeader className="gap-2 px-6 pt-7 pb-5 sm:px-8 sm:pt-8">
               <CardTitle className="text-2xl tracking-[-0.03em]">
                 Welcome back
@@ -136,7 +137,7 @@ export function AuthScreen({ client }: AuthScreenProps) {
                     disabled={isSubmitting}
                     required
                     autoFocus
-                    className="h-10 bg-white"
+                    className="h-10 border-sky-200 bg-white/85 focus-visible:ring-sky-400"
                   />
                 </div>
 
@@ -151,14 +152,14 @@ export function AuthScreen({ client }: AuthScreenProps) {
                     onChange={(event) => setPassword(event.target.value)}
                     disabled={isSubmitting}
                     required
-                    className="h-10 bg-white"
+                    className="h-10 border-sky-200 bg-white/85 focus-visible:ring-sky-400"
                   />
                 </div>
 
                 <Button
                   type="submit"
                   size="lg"
-                  className="mt-1 h-10 w-full bg-[#3c332b] hover:bg-[#4b4037]"
+                  className="mt-1 h-10 w-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 text-white shadow-[0_12px_24px_-12px_rgba(37,99,235,0.8)] hover:from-sky-600 hover:via-blue-700 hover:to-indigo-700"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (

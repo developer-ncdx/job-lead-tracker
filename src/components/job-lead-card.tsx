@@ -57,10 +57,10 @@ export function JobLeadCard({
   }
 
   return (
-    <Card className="gap-0 overflow-visible border-0 bg-white py-0 shadow-[0_8px_30px_-24px_rgba(62,45,31,0.55)] ring-1 ring-black/[0.07] transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_-26px_rgba(62,45,31,0.5)]">
+    <Card className="group gap-0 overflow-visible border-0 bg-gradient-to-br from-white via-white to-sky-50/65 py-0 shadow-[0_12px_35px_-24px_rgba(2,132,199,0.48)] ring-1 ring-sky-200/65 transition-[box-shadow,transform,ring-color] duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-24px_rgba(2,132,199,0.45)] hover:ring-sky-300/80">
       <article>
         <CardHeader className="grid-cols-[auto_1fr] gap-x-3 gap-y-2 px-4 py-4 sm:grid-cols-[auto_1fr_auto] sm:px-5">
-          <div className="row-span-3 flex size-10 items-center justify-center rounded-xl bg-[#f5e8dc] text-[#b85d2c]">
+          <div className="row-span-3 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-blue-100 text-sky-700 shadow-inner ring-1 ring-sky-200/70 transition-transform duration-200 group-hover:scale-105">
             <Link2 className="size-4.5" aria-hidden="true" />
           </div>
 
@@ -72,7 +72,7 @@ export function JobLeadCard({
             asChild
             variant="link"
             size="sm"
-            className="col-start-2 row-start-2 h-auto w-fit px-0 text-[#a94f25]"
+            className="col-start-2 row-start-2 h-auto w-fit px-0 text-sky-700 hover:text-blue-700"
           >
             <a href={lead.url} target="_blank" rel="noopener noreferrer">
               Open posting
@@ -105,8 +105,8 @@ export function JobLeadCard({
                 aria-pressed={lead.is_priority}
                 className={
                   lead.is_priority
-                    ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
-                    : "text-muted-foreground"
+                    ? "border-sky-200 bg-gradient-to-r from-sky-100 to-blue-100 text-sky-900 hover:from-sky-200 hover:to-blue-100"
+                    : "border-sky-200/80 bg-white/70 text-slate-600 hover:bg-sky-50 hover:text-sky-800"
                 }
               >
                 {isUpdatingPriority ? (

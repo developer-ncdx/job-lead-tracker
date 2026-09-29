@@ -146,13 +146,14 @@ function DashboardView({
   const leadLabel = leads.length === 1 ? "1 lead" : `${leads.length} leads`
 
   return (
-    <div className="relative min-h-svh overflow-hidden bg-[#f6f4ef]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_75%_0%,rgba(221,121,61,0.12),transparent_40%)]" />
+    <div className="relative min-h-svh overflow-hidden bg-gradient-to-b from-sky-50 via-[#f7fcff] to-blue-50/70">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_4%,rgba(56,189,248,0.20),transparent_28%),radial-gradient(circle_at_88%_12%,rgba(99,102,241,0.13),transparent_25%),linear-gradient(135deg,rgba(255,255,255,0.5),transparent_45%)]" />
+      <div className="pointer-events-none absolute top-44 -left-32 size-80 rounded-full bg-cyan-200/20 blur-3xl" />
 
-      <header className="relative border-b border-black/[0.06] bg-[#f6f4ef]/88 backdrop-blur-xl">
+      <header className="relative border-b border-sky-200/60 bg-white/65 shadow-[0_1px_20px_rgba(14,165,233,0.05)] backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-[#d96f32] text-white shadow-sm">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-500 text-white shadow-[0_8px_20px_-8px_rgba(14,165,233,0.8)] ring-1 ring-white/60">
               <BriefcaseBusiness className="size-4.5" aria-hidden="true" />
             </div>
             <div>
@@ -183,7 +184,7 @@ function DashboardView({
           ) : (
             <Badge
               variant="secondary"
-              className="rounded-full bg-[#eee9e0] text-[#665b51]"
+              className="rounded-full border border-sky-200/70 bg-white/75 text-sky-800 shadow-sm"
             >
               {headerBadgeLabel ?? "Preview mode"}
             </Badge>
@@ -195,22 +196,22 @@ function DashboardView({
         <section className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-xs font-semibold tracking-[0.16em] text-[#aa5429] uppercase">
+              <span className="text-xs font-semibold tracking-[0.16em] text-sky-700 uppercase">
                 Your pipeline
               </span>
               {!isLoading && (
                 <Badge
                   variant="secondary"
-                  className="rounded-full bg-[#eee9e0] text-[#665b51]"
+                  className="rounded-full border border-sky-200 bg-sky-100/80 text-sky-800"
                 >
                   {leadLabel}
                 </Badge>
               )}
             </div>
-            <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[#302820] sm:text-4xl">
+            <h1 className="bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-3xl font-semibold tracking-[-0.04em] text-transparent sm:text-4xl">
               Job leads
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[#6f645b] sm:text-base">
+            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
               {isPreview
                 ? "Preview the workspace while Supabase is being connected."
                 : "Review opportunities collected in Supabase, sorted by their source date."}
@@ -220,7 +221,7 @@ function DashboardView({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              className="w-fit bg-white shadow-sm"
+              className="w-fit border-sky-200/80 bg-white/85 text-slate-700 shadow-sm hover:border-sky-300 hover:bg-sky-50"
               onClick={() =>
                 setSortOrder((current) =>
                   current === "newest" ? "oldest" : "newest",
@@ -239,7 +240,7 @@ function DashboardView({
 
             <Button
               variant="outline"
-              className="w-fit bg-white shadow-sm"
+              className="w-fit border-sky-200/80 bg-white/85 text-slate-700 shadow-sm hover:border-sky-300 hover:bg-sky-50"
               onClick={() => void onRefresh()}
               disabled={isPreview || isLoading || isRefreshing}
             >
@@ -250,7 +251,7 @@ function DashboardView({
         </section>
 
         <div
-          className="mb-5 flex w-fit items-center rounded-xl bg-[#eae5dc] p-1"
+          className="mb-5 flex w-fit items-center rounded-xl border border-sky-200/60 bg-white/60 p-1 shadow-sm backdrop-blur"
           role="tablist"
           aria-label="Job lead views"
         >
@@ -263,7 +264,7 @@ function DashboardView({
             onClick={() => setActiveView("all")}
             className={
               activeView === "all"
-                ? "bg-white text-[#302820] shadow-sm hover:bg-white"
+                ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm hover:from-sky-500 hover:to-blue-600"
                 : "text-muted-foreground"
             }
           >
@@ -279,7 +280,7 @@ function DashboardView({
             onClick={() => setActiveView("priority")}
             className={
               activeView === "priority"
-                ? "bg-white text-[#302820] shadow-sm hover:bg-white"
+                ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm hover:from-sky-500 hover:to-blue-600"
                 : "text-muted-foreground"
             }
           >
@@ -298,7 +299,7 @@ function DashboardView({
               />
             ) : (
               <Cloud
-                className="size-3.5 text-[#738066]"
+                className="size-3.5 text-sky-600"
                 aria-hidden="true"
               />
             )}

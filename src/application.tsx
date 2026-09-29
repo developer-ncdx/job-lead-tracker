@@ -46,9 +46,9 @@ type ConnectedApplicationProps = {
 
 function LoadingScreen() {
   return (
-    <main className="flex min-h-svh items-center justify-center bg-[#f6f4ef]">
+    <main className="flex min-h-svh items-center justify-center bg-gradient-to-br from-sky-50 via-white to-blue-100/80">
       <div className="flex flex-col items-center gap-4">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-[#d96f32] text-white shadow-sm">
+        <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-500 text-white shadow-[0_12px_28px_-12px_rgba(14,165,233,0.85)]">
           <BriefcaseBusiness className="size-5" aria-hidden="true" />
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -116,8 +116,8 @@ function ConnectedApplication({ client }: ConnectedApplicationProps) {
 
   if (authError) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-[#f6f4ef] px-5">
-        <Card className="w-full max-w-md border-0 bg-white shadow-lg ring-1 ring-black/[0.06]">
+      <main className="flex min-h-svh items-center justify-center bg-gradient-to-br from-sky-50 via-white to-blue-100/80 px-5">
+        <Card className="w-full max-w-md border-0 bg-white/90 shadow-[0_28px_80px_-34px_rgba(2,132,199,0.38)] ring-1 ring-sky-200/75 backdrop-blur">
           <CardContent className="space-y-4">
             <Alert variant="destructive">
               <AlertCircle />

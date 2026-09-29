@@ -24,7 +24,7 @@ type JobLeadListProps = {
 
 function LeadSkeleton() {
   return (
-    <Card className="gap-0 border-0 bg-white py-0 ring-1 ring-black/[0.06]">
+    <Card className="gap-0 border-0 bg-white/80 py-0 ring-1 ring-sky-200/70">
       <div className="p-5">
         <div className="flex items-start gap-3">
           <Skeleton className="size-10 rounded-xl" />
@@ -76,9 +76,9 @@ export function JobLeadList({
 
   if (leads.length === 0) {
     return (
-      <Card className="border-dashed bg-white/65 py-0 shadow-none ring-0">
+      <Card className="border-dashed border-sky-300 bg-gradient-to-br from-white/80 to-sky-100/60 py-0 shadow-none ring-0">
         <CardContent className="flex flex-col items-center px-6 py-14 text-center">
-          <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-[#f1e8dc] text-[#a95a31]">
+          <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-blue-200 text-sky-700 shadow-inner">
             <Inbox className="size-5" aria-hidden="true" />
           </div>
           <h2 className="text-base font-semibold">
@@ -92,7 +92,7 @@ export function JobLeadList({
           <Button
             variant="outline"
             size="sm"
-            className="mt-5 bg-white"
+            className="mt-5 border-sky-200 bg-white text-sky-800 hover:bg-sky-50"
             onClick={() => void onRetry()}
           >
             <RefreshCw />
