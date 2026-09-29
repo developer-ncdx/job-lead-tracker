@@ -74,7 +74,7 @@ describe("JobLeadCard", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("shows provider wording when an exact timestamp is unavailable", () => {
+  it("shows only the provider's relative time when an exact timestamp is unavailable", () => {
     render(
       <JobLeadCard
         lead={{
@@ -87,7 +87,8 @@ describe("JobLeadCard", () => {
       />,
     )
 
-    expect(screen.getByText("Reposted 2 days ago")).toBeInTheDocument()
+    expect(screen.getByText("2 days ago")).toBeInTheDocument()
+    expect(screen.queryByText(/reposted/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/first seen/i)).not.toBeInTheDocument()
   })
 

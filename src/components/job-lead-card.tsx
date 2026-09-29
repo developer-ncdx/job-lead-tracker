@@ -24,6 +24,10 @@ function formatPostedAt(value: string) {
   return formatPhilippineDateTime(value)
 }
 
+function formatRelativePostedAt(value: string) {
+  return value.replace(/^(?:re)?posted\s+/i, "").trim()
+}
+
 export function JobLeadCard({
   lead,
   onSetPriority,
@@ -93,9 +97,7 @@ export function JobLeadCard({
           {!postedAt && lead.source_timestamp_label && (
             <span className="col-start-2 row-start-3 flex items-center gap-1.5 text-xs text-muted-foreground">
               <CalendarDays className="size-3.5" aria-hidden="true" />
-              {/^reposted\b/i.test(lead.source_timestamp_label)
-                ? lead.source_timestamp_label
-                : `Posted ${lead.source_timestamp_label}`}
+              {formatRelativePostedAt(lead.source_timestamp_label)}
             </span>
           )}
 
