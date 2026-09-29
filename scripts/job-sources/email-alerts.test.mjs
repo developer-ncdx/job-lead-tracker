@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   enrichEmailAlertPostedDates,
   extractExactPostedAt,
+  extractProviderPostedLabel,
   identifyEmailAlertProvider,
   parseJobAlertEmail,
   resolveEmailAlertEnvironment,
@@ -93,6 +94,14 @@ describe("email job alerts", () => {
     expect(extractExactPostedAt("<p>Reposted 2 days ago</p>")).toBeNull()
   })
 
+  it("keeps LinkedIn relative posting text without inventing a timestamp", () => {
+    expect(
+      extractProviderPostedLabel(
+        '<span class="posted-time-ago__text">Reposted 2 days ago</span>',
+      ),
+    ).toBe("Reposted 2 days ago")
+  })
+
   it("enriches LinkedIn jobs from public-page posted metadata", async () => {
     const jobs = await enrichEmailAlertPostedDates(
       [
@@ -117,6 +126,7 @@ describe("email job alerts", () => {
     expect(jobs[0]).toMatchObject({
       sourceTimestampAt: "2026-09-27T09:01:19.000Z",
       sourceTimestampKind: "published",
+      sourceTimestampLabel: null,
     })
   })
 
@@ -137,10 +147,11 @@ describe("email job alerts", () => {
     expect(jobs[0]).toMatchObject({
       sourceTimestampAt: null,
       sourceTimestampKind: null,
+      sourceTimestampLabel: null,
     })
   })
 
-  it("does not convert LinkedIn relative wording into an exact timestamp", async () => {
+  it("preserves LinkedIn relative wording without converting it", async () => {
     const jobs = await enrichEmailAlertPostedDates(
       [
         {
@@ -162,6 +173,7 @@ describe("email job alerts", () => {
     expect(jobs[0]).toMatchObject({
       sourceTimestampAt: null,
       sourceTimestampKind: null,
+      sourceTimestampLabel: "Reposted 2 days ago",
     })
   })
 

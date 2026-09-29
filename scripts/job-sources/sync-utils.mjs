@@ -144,6 +144,9 @@ export function buildSupabaseRows(
         job.sourceTimestampAt ?? existing?.source_timestamp_at ?? null,
       source_timestamp_kind:
         job.sourceTimestampKind ?? existing?.source_timestamp_kind ?? null,
+      source_timestamp_label: job.sourceTimestampAt
+        ? null
+        : job.sourceTimestampLabel ?? existing?.source_timestamp_label ?? null,
       first_seen_at: existing?.first_seen_at ?? observedAt,
       last_seen_at: observedAt,
     }

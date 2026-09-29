@@ -33,9 +33,7 @@ async function loadExistingLeads(client, userId, jobs) {
     for (const jobBatch of chunk(sourceJobs, 100)) {
       let query = client
         .from("job_leads")
-        .select(
-          "source, source_job_id, title, description, url, source_timestamp_at, source_timestamp_kind, first_seen_at",
-        )
+        .select("*")
         .eq("source", source)
         .in(
           "source_job_id",
@@ -68,9 +66,20 @@ async function loadExistingLeads(client, userId, jobs) {
 
 async function upsertLeads(client, rows) {
   for (const rowBatch of chunk(rows, 100)) {
-    const { error } = await client.from("job_leads").upsert(rowBatch, {
+    let { error } = await client.from("job_leads").upsert(rowBatch, {
       onConflict: "user_id,source,source_job_id",
     })
+
+    if (error && /source_timestamp_label/i.test(error.message)) {
+      const legacyRows = rowBatch.map(
+        ({ source_timestamp_label: _sourceTimestampLabel, ...row }) => row,
+      )
+      const legacyResult = await client.from("job_leads").upsert(
+        legacyRows,
+        { onConflict: "user_id,source,source_job_id" },
+      )
+      error = legacyResult.error
+    }
 
     if (error) {
       throw new Error(`Could not upsert job leads: ${error.message}`)

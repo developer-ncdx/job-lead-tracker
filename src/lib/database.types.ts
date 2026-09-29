@@ -26,6 +26,7 @@ export type Database = {
           is_priority: boolean
           source_timestamp_at: string | null
           source_timestamp_kind: JobLeadTimestampKind | null
+          source_timestamp_label: string | null
           first_seen_at: string
           last_seen_at: string
           created_at: string
@@ -45,6 +46,7 @@ export type Database = {
           is_priority?: boolean
           source_timestamp_at?: string | null
           source_timestamp_kind?: JobLeadTimestampKind | null
+          source_timestamp_label?: string | null
           first_seen_at?: string
           last_seen_at?: string
           created_at?: string
@@ -64,6 +66,7 @@ export type Database = {
           is_priority?: boolean
           source_timestamp_at?: string | null
           source_timestamp_kind?: JobLeadTimestampKind | null
+          source_timestamp_label?: string | null
           first_seen_at?: string
           last_seen_at?: string
           created_at?: string

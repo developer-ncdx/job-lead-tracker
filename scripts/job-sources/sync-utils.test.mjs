@@ -130,6 +130,7 @@ describe("job sync utilities", () => {
       is_remote: true,
       source_timestamp_at: "2026-09-23T10:00:00.000Z",
       source_timestamp_kind: "published",
+      source_timestamp_label: null,
       first_seen_at: "2026-09-20T08:00:00.000Z",
       last_seen_at: "2026-09-24T01:00:00.000Z",
     })
@@ -157,6 +158,25 @@ describe("job sync utilities", () => {
     expect(row).toMatchObject({
       source_timestamp_at: "2026-09-23T10:00:00.000Z",
       source_timestamp_kind: "published",
+      source_timestamp_label: null,
+    })
+  })
+
+  it("stores a provider label only when no exact timestamp exists", () => {
+    const [row] = buildSupabaseRows([
+      {
+        ...greenhouseJob,
+        source: "linkedin-email",
+        sourceTimestampAt: null,
+        sourceTimestampKind: null,
+        sourceTimestampLabel: "3 days ago",
+      },
+    ], null)
+
+    expect(row).toMatchObject({
+      source_timestamp_at: null,
+      source_timestamp_kind: null,
+      source_timestamp_label: "3 days ago",
     })
   })
 })

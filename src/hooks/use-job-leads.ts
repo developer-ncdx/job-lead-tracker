@@ -80,9 +80,7 @@ export function useJobLeads(
         for (let offset = 0; ; offset += PAGE_SIZE) {
           let query = client
             .from("job_leads")
-            .select(
-              "id, user_id, title, description, url, source, source_job_id, company, location, is_remote, is_priority, source_timestamp_at, source_timestamp_kind, first_seen_at, last_seen_at, created_at, updated_at",
-            )
+            .select("*")
 
           if (userId) {
             query = query.eq("user_id", userId)

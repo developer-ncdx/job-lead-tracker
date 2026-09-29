@@ -22,6 +22,7 @@ const lead: JobLead = {
   is_priority: false,
   source_timestamp_at: "2026-09-20T08:00:00.000Z",
   source_timestamp_kind: "published",
+  source_timestamp_label: null,
   first_seen_at: "2026-09-20T08:05:00.000Z",
   last_seen_at: "2026-09-20T08:05:00.000Z",
   created_at: "2026-09-20T08:00:00.000Z",

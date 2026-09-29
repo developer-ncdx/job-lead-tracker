@@ -192,6 +192,7 @@ function jobFromLink(link, body, subject) {
     isRemote: inferRemote(title, context, subject),
     sourceTimestampAt: null,
     sourceTimestampKind: null,
+    sourceTimestampLabel: null,
   }
 }
 
@@ -303,6 +304,15 @@ export function extractExactPostedAt(html) {
   return null
 }
 
+export function extractProviderPostedLabel(html) {
+  const match = String(html).match(
+    /<span\b[^>]*class=["'][^"']*\bposted-time-ago__text\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i,
+  )
+  const label = match ? cleanText(match[1]) : ""
+
+  return label && label.length <= 80 ? label : null
+}
+
 function providerPostingUrl(job) {
   if (job.source === "linkedin-email") {
     return `https://www.linkedin.com/jobs/view/${job.sourceJobId}`
@@ -315,7 +325,7 @@ export async function enrichEmailAlertPostedDates(
   jobs,
   { fetchImpl = fetch } = {},
 ) {
-  const postedDates = new Map()
+  const postingMetadata = new Map()
   const pending = [...new Map(
     jobs
       .filter((job) => !job.sourceTimestampAt)
@@ -349,7 +359,24 @@ export async function enrichEmailAlertPostedDates(
           const postedAt = extractExactPostedAt(html)
 
           if (postedAt) {
-            postedDates.set(`${job.source}:${job.sourceJobId}`, postedAt)
+            postingMetadata.set(`${job.source}:${job.sourceJobId}`, {
+              sourceTimestampAt: postedAt,
+              sourceTimestampKind: "published",
+              sourceTimestampLabel: null,
+            })
+            return
+          }
+
+          if (job.source === "linkedin-email") {
+            const postedLabel = extractProviderPostedLabel(html)
+
+            if (postedLabel) {
+              postingMetadata.set(`${job.source}:${job.sourceJobId}`, {
+                sourceTimestampAt: null,
+                sourceTimestampKind: null,
+                sourceTimestampLabel: postedLabel,
+              })
+            }
           }
         } catch {
           // A missing page date should not fail the complete email sync.
@@ -359,15 +386,16 @@ export async function enrichEmailAlertPostedDates(
   }
 
   return jobs.map((job) => {
-    const postedAt = postedDates.get(`${job.source}:${job.sourceJobId}`)
+    const metadata = postingMetadata.get(
+      `${job.source}:${job.sourceJobId}`,
+    )
 
-    return postedAt
-      ? {
+    return metadata
+      ? { ...job, ...metadata }
+      : {
           ...job,
-          sourceTimestampAt: postedAt,
-          sourceTimestampKind: "published",
+          sourceTimestampLabel: job.sourceTimestampLabel ?? null,
         }
-      : job
   })
 }
 

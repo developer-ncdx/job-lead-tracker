@@ -25,13 +25,19 @@ if (!settings.enabled) {
         {
           extracted: jobs.filter((job) => job.source === source).length,
           matching: matching.filter((job) => job.source === source).length,
+          timestamped: matching.filter(
+            (job) => job.source === source && job.sourceTimestampAt,
+          ).length,
+          labeled: matching.filter(
+            (job) => job.source === source && job.sourceTimestampLabel,
+          ).length,
         },
       ]),
     )
 
     for (const [source, count] of Object.entries(counts)) {
       console.log(
-        `${source}: extracted=${count.extracted} matching_remote=${count.matching}`,
+        `${source}: extracted=${count.extracted} matching_remote=${count.matching} timestamped=${count.timestamped} labeled=${count.labeled}`,
       )
     }
     console.log(`Email sync dry run: extracted=${jobs.length} matching_remote=${matching.length}`)

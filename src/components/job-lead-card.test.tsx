@@ -18,6 +18,7 @@ const lead: JobLead = {
   is_priority: false,
   source_timestamp_at: "2026-09-20T08:00:00.000Z",
   source_timestamp_kind: "published",
+  source_timestamp_label: null,
   first_seen_at: "2026-09-20T08:05:00.000Z",
   last_seen_at: "2026-09-20T08:05:00.000Z",
   created_at: "2026-09-20T08:00:00.000Z",
@@ -71,6 +72,41 @@ describe("JobLeadCard", () => {
         name: `Add ${lead.title} to priority`,
       }),
     ).not.toBeInTheDocument()
+  })
+
+  it("shows provider wording when an exact timestamp is unavailable", () => {
+    render(
+      <JobLeadCard
+        lead={{
+          ...lead,
+          source_timestamp_at: null,
+          source_timestamp_kind: null,
+          source_timestamp_label: "Reposted 2 days ago",
+        }}
+        onSetPriority={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText("Reposted 2 days ago")).toBeInTheDocument()
+    expect(screen.queryByText(/first seen/i)).not.toBeInTheDocument()
+  })
+
+  it("shows first-seen time when the provider supplies no date", () => {
+    render(
+      <JobLeadCard
+        lead={{
+          ...lead,
+          source_timestamp_at: null,
+          source_timestamp_kind: null,
+          source_timestamp_label: null,
+        }}
+        onSetPriority={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText(/first seen/i).parentElement).toHaveTextContent(
+      "First seen Sep 20, 2026, 4:05 PM PHT",
+    )
   })
 
   it("adds a lead to the priority list", async () => {
