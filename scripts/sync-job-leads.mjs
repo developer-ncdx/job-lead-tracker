@@ -179,17 +179,25 @@ export async function runJobSync({
     },
   )
   const backfillFailureCount = linkedinTimestampBackfill.failures.length
+  const skippedLabelCount = linkedinTimestampBackfill.labelsSkipped ?? 0
+  const backfillHasIssues =
+    backfillFailureCount > 0 || skippedLabelCount > 0
+
+  const backfillErrors = [
+    backfillFailureCount > 0 &&
+      `${backfillFailureCount} LinkedIn page request(s) failed`,
+    skippedLabelCount > 0 &&
+      `${skippedLabelCount} relative date label(s) skipped because ` +
+        "source_timestamp_label is not deployed",
+  ].filter(Boolean)
 
   sourceSummaries.push({
     source: "linkedin-email",
     name: "linkedin-email:timestamp-backfill",
-    status: backfillFailureCount > 0 ? "failed" : "ok",
+    status: backfillHasIssues ? "failed" : "ok",
     fetched: linkedinTimestampBackfill.attempted,
     matching: linkedinTimestampBackfill.updated,
-    error:
-      backfillFailureCount > 0
-        ? `${backfillFailureCount} LinkedIn page request(s) failed`
-        : null,
+    error: backfillHasIssues ? backfillErrors.join("; ") : null,
   })
 
   return {

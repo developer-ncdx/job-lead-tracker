@@ -5,6 +5,53 @@ import {
 
 const LINKEDIN_SOURCE = "linkedin-email"
 
+function isMissingTimestampLabelColumn(error) {
+  return /source_timestamp_label.*(?:does not exist|schema cache)/i.test(
+    error?.message ?? "",
+  )
+}
+
+async function loadBackfillRows(client, limit) {
+  const result = await client
+    .from("job_leads")
+    .select("id,url,source_job_id")
+    .eq("source", LINKEDIN_SOURCE)
+    .is("source_timestamp_at", null)
+    .is("source_timestamp_label", null)
+    .limit(limit)
+
+  if (!result.error) {
+    return {
+      rows: result.data ?? [],
+      supportsTimestampLabels: true,
+    }
+  }
+
+  if (!isMissingTimestampLabelColumn(result.error)) {
+    throw new Error(
+      `Could not load LinkedIn timestamp backfill rows: ${result.error.message}`,
+    )
+  }
+
+  const legacyResult = await client
+    .from("job_leads")
+    .select("id,url,source_job_id")
+    .eq("source", LINKEDIN_SOURCE)
+    .is("source_timestamp_at", null)
+    .limit(limit)
+
+  if (legacyResult.error) {
+    throw new Error(
+      `Could not load LinkedIn timestamp backfill rows: ${legacyResult.error.message}`,
+    )
+  }
+
+  return {
+    rows: legacyResult.data ?? [],
+    supportsTimestampLabels: false,
+  }
+}
+
 function postingUrl(row) {
   const sourceJobId = String(row.source_job_id ?? "").trim()
 
@@ -52,26 +99,20 @@ async function fetchPostingMetadata(row, fetchImpl) {
 
 export async function backfillLinkedInTimestamps(
   client,
-  { fetchImpl = fetch, limit = 50 } = {},
+  {
+    fetchImpl = fetch,
+    limit = 6,
+    observedAt = new Date().toISOString(),
+  } = {},
 ) {
-  const normalizedLimit = Math.max(1, Math.min(100, Number(limit) || 50))
-  const { data, error } = await client
-    .from("job_leads")
-    .select("id,url,source_job_id")
-    .eq("source", LINKEDIN_SOURCE)
-    .is("source_timestamp_at", null)
-    .is("source_timestamp_label", null)
-    .limit(normalizedLimit)
-
-  if (error) {
-    throw new Error(
-      `Could not load LinkedIn timestamp backfill rows: ${error.message}`,
-    )
-  }
-
-  const rows = data ?? []
+  const normalizedLimit = Math.max(1, Math.min(100, Number(limit) || 6))
+  const { rows, supportsTimestampLabels } = await loadBackfillRows(
+    client,
+    normalizedLimit,
+  )
   let updated = 0
   let unresolved = 0
+  let labelsSkipped = 0
   const failures = []
 
   for (let index = 0; index < rows.length; index += 3) {
@@ -87,9 +128,25 @@ export async function backfillLinkedInTimestamps(
             return
           }
 
+          if (
+            !supportsTimestampLabels &&
+            metadata.source_timestamp_label
+          ) {
+            labelsSkipped += 1
+            return
+          }
+
+          const update = supportsTimestampLabels
+            ? { ...metadata, last_seen_at: observedAt }
+            : {
+                source_timestamp_at: metadata.source_timestamp_at,
+                source_timestamp_kind: metadata.source_timestamp_kind,
+                last_seen_at: observedAt,
+              }
+
           const result = await client
             .from("job_leads")
-            .update(metadata)
+            .update(update)
             .eq("id", row.id)
 
           if (result.error) {
@@ -114,6 +171,8 @@ export async function backfillLinkedInTimestamps(
     attempted: rows.length,
     updated,
     unresolved,
+    labelsSkipped,
+    supportsTimestampLabels,
     failures,
   }
 }

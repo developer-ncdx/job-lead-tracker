@@ -12,7 +12,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import type { JobLead } from "@/lib/database.types"
 import { getErrorMessage } from "@/lib/errors"
-import { formatPhilippineDateTime } from "@/lib/philippine-time"
+import {
+  estimateRelativeDate,
+  formatPhilippineDate,
+  formatPhilippineDateTime,
+} from "@/lib/philippine-time"
 
 type JobLeadCardProps = {
   lead: JobLead
@@ -36,6 +40,16 @@ export function JobLeadCard({
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const postedAt = lead.source_timestamp_at
     ? formatPostedAt(lead.source_timestamp_at)
+    : null
+  const estimatedPostedAt =
+    !postedAt && lead.source_timestamp_label
+      ? estimateRelativeDate(
+          lead.source_timestamp_label,
+          lead.last_seen_at,
+        )
+      : null
+  const estimatedPostedDate = estimatedPostedAt
+    ? formatPhilippineDate(estimatedPostedAt)
     : null
 
   async function handlePriority() {
@@ -98,7 +112,13 @@ export function JobLeadCard({
           {!postedAt && lead.source_timestamp_label && (
             <span className="col-start-2 row-start-3 flex items-center gap-1.5 text-xs text-muted-foreground">
               <CalendarDays className="size-3.5" aria-hidden="true" />
-              {formatRelativePostedAt(lead.source_timestamp_label)}
+              {estimatedPostedDate ? (
+                <time dateTime={estimatedPostedAt?.toISOString()}>
+                  Approx. {estimatedPostedDate}
+                </time>
+              ) : (
+                formatRelativePostedAt(lead.source_timestamp_label)
+              )}
             </span>
           )}
 

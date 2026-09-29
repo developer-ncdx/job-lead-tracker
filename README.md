@@ -246,7 +246,7 @@ JOB_ALERT_MAILBOX=INBOX
 JOB_ALERT_LOOKBACK_DAYS=14
 JOB_ALERT_MAX_MESSAGES=100
 JOB_ALERT_ENRICH_POSTED_DATES=true
-JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT=50
+JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT=6
 JOB_SYNC_FAILURE_EMAIL_TO=noxpwr@gmail.com
 JOB_SYNC_SMTP_HOST=smtp.gmail.com
 JOB_SYNC_SMTP_PORT=465
@@ -263,7 +263,8 @@ app password as the IMAP importer. `JOB_SYNC_FAILURE_EMAIL_TO` defaults to
 
 Each hourly run also revisits up to
 `JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT` existing LinkedIn rows whose provider
-time is empty. It stores only an exact timestamp or relative label returned by
+time is empty. The default is deliberately small to avoid LinkedIn request
+throttling. It stores only an exact timestamp or relative label returned by
 LinkedIn; it never substitutes the email receipt or ingestion time. Run the
 same idempotent backfill manually with:
 

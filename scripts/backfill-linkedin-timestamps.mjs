@@ -40,8 +40,17 @@ if (isMain) {
     console.log(
       `LinkedIn timestamp backfill: attempted=${summary.attempted} ` +
         `updated=${summary.updated} unresolved=${summary.unresolved} ` +
+        `labels_skipped=${summary.labelsSkipped} ` +
         `failed=${summary.failures.length}`,
     )
+
+    if (!summary.supportsTimestampLabels) {
+      console.warn(
+        "Relative LinkedIn dates were skipped because " +
+          "source_timestamp_label is not deployed. Apply the pending " +
+          "Supabase migration, then run this command again.",
+      )
+    }
 
     if (summary.failures.length > 0) {
       process.exitCode = 1

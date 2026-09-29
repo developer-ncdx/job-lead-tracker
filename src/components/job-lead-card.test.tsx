@@ -74,22 +74,27 @@ describe("JobLeadCard", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("shows only the provider's relative time when an exact timestamp is unavailable", () => {
-    render(
+  it("shows an approximate calendar date when only a provider-relative time is available", () => {
+    const { container } = render(
       <JobLeadCard
         lead={{
           ...lead,
           source_timestamp_at: null,
           source_timestamp_kind: null,
           source_timestamp_label: "Reposted 2 days ago",
+          last_seen_at: "2026-09-29T19:40:00.000Z",
         }}
         onSetPriority={vi.fn()}
       />,
     )
 
-    expect(screen.getByText("2 days ago")).toBeInTheDocument()
+    expect(screen.getByText("Approx. Sep 28, 2026")).toBeInTheDocument()
     expect(screen.queryByText(/reposted/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/first seen/i)).not.toBeInTheDocument()
+    expect(container.querySelector("time")).toHaveAttribute(
+      "datetime",
+      "2026-09-27T19:40:00.000Z",
+    )
   })
 
   it("shows only the exact time for a LinkedIn posting", () => {
