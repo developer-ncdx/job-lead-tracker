@@ -380,9 +380,9 @@ function DashboardView({
                   }
                   aria-label="Jobs per page"
                 >
-                  <option value={10}>10 jobs per page</option>
-                  <option value={20}>20 jobs per page</option>
-                  <option value={50}>50 jobs per page</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
                 </select>
               </label>
               <span
