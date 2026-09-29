@@ -360,13 +360,17 @@ function DashboardView({
 
         {!isLoading && sortedLeads.length > pageSize && (
           <nav
-            className="mt-6 flex flex-col gap-3 rounded-xl border border-sky-200/70 bg-white/75 px-4 py-2.5 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between"
+            className="mt-7 flex justify-center overflow-x-auto px-1 py-1"
             aria-label="Job lead pagination"
           >
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span>Jobs per page</span>
-              <label className="relative flex h-7 min-w-12 cursor-pointer items-center justify-center gap-1 rounded-md border border-sky-200 bg-white px-2 font-medium text-slate-700 shadow-xs hover:bg-sky-50">
-                <span>{pageSize}</span>
+            <div className="flex flex-none items-center gap-1 rounded-xl border border-sky-200/80 bg-white/85 p-1.5 shadow-[0_8px_24px_-16px_rgba(14,165,233,0.75)] backdrop-blur">
+              <label className="relative flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 hover:bg-sky-50">
+                <span>
+                  {firstVisibleLead + 1}–{Math.min(
+                    firstVisibleLead + pageSize,
+                    sortedLeads.length,
+                  )} of {sortedLeads.length}
+                </span>
                 <ChevronDown className="size-3.5" aria-hidden="true" />
                 <select
                   className="absolute inset-0 cursor-pointer opacity-0"
@@ -381,19 +385,15 @@ function DashboardView({
                   <option value={50}>50 jobs per page</option>
                 </select>
               </label>
-            </div>
-
-            <div className="flex items-center justify-end gap-1">
-              <span className="mr-2 text-xs font-medium text-slate-600">
-                {firstVisibleLead + 1}–{Math.min(
-                  firstVisibleLead + pageSize,
-                  sortedLeads.length,
-                )} of {sortedLeads.length}
-              </span>
+              <span
+                className="mx-1 h-5 w-px bg-sky-100"
+                aria-hidden="true"
+              />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
+                className="rounded-lg text-slate-500 hover:bg-sky-50 hover:text-sky-700"
                 onClick={() => changePage(1)}
                 disabled={currentPage === 1}
                 aria-label="First page"
@@ -404,6 +404,7 @@ function DashboardView({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
+                className="rounded-lg text-slate-500 hover:bg-sky-50 hover:text-sky-700"
                 onClick={() => changePage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
                 aria-label="Previous page"
@@ -424,7 +425,7 @@ function DashboardView({
                   }
                 }}
                 aria-label="Current page"
-                className="mx-1 h-7 w-10 rounded-md border-sky-200 bg-white px-1 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                className="mx-1 h-8 w-10 rounded-lg border-sky-200 bg-sky-50/50 px-1 text-center text-xs shadow-none focus-visible:border-sky-400 focus-visible:ring-sky-200 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
               <span className="mr-1 text-xs text-slate-500">
                 of {pageCount}
@@ -434,6 +435,7 @@ function DashboardView({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
+                className="rounded-lg text-slate-500 hover:bg-sky-50 hover:text-sky-700"
                 onClick={() =>
                   changePage(Math.min(pageCount, currentPage + 1))
                 }
@@ -446,6 +448,7 @@ function DashboardView({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
+                className="rounded-lg text-slate-500 hover:bg-sky-50 hover:text-sky-700"
                 onClick={() => changePage(pageCount)}
                 disabled={currentPage === pageCount}
                 aria-label="Last page"
