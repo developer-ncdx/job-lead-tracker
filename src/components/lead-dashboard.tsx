@@ -360,93 +360,99 @@ function DashboardView({
 
         {!isLoading && sortedLeads.length > pageSize && (
           <nav
-            className="mt-6 flex flex-wrap items-center justify-end gap-1 rounded-xl border border-sky-200/70 bg-white/75 px-3 py-2 shadow-sm backdrop-blur"
+            className="mt-6 flex flex-col gap-3 rounded-xl border border-sky-200/70 bg-white/75 px-4 py-2.5 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between"
             aria-label="Job lead pagination"
           >
-            <label className="relative mr-2 flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium text-slate-600 hover:bg-sky-50">
-              <span>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Jobs per page</span>
+              <label className="relative flex h-7 min-w-12 cursor-pointer items-center justify-center gap-1 rounded-md border border-sky-200 bg-white px-2 font-medium text-slate-700 shadow-xs hover:bg-sky-50">
+                <span>{pageSize}</span>
+                <ChevronDown className="size-3.5" aria-hidden="true" />
+                <select
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  value={pageSize}
+                  onChange={(event) =>
+                    changePageSize(Number(event.target.value))
+                  }
+                  aria-label="Jobs per page"
+                >
+                  <option value={10}>10 jobs per page</option>
+                  <option value={20}>20 jobs per page</option>
+                  <option value={50}>50 jobs per page</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-1">
+              <span className="mr-2 text-xs font-medium text-slate-600">
                 {firstVisibleLead + 1}–{Math.min(
                   firstVisibleLead + pageSize,
                   sortedLeads.length,
                 )} of {sortedLeads.length}
               </span>
-              <ChevronDown className="size-3.5" aria-hidden="true" />
-              <select
-                className="absolute inset-0 cursor-pointer opacity-0"
-                value={pageSize}
-                onChange={(event) =>
-                  changePageSize(Number(event.target.value))
-                }
-                aria-label="Jobs per page"
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => changePage(1)}
+                disabled={currentPage === 1}
+                aria-label="First page"
               >
-                <option value={10}>10 jobs per page</option>
-                <option value={20}>20 jobs per page</option>
-                <option value={50}>50 jobs per page</option>
-              </select>
-            </label>
+                <ChevronsLeft />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => changePage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                aria-label="Previous page"
+              >
+                <ChevronLeft />
+              </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => changePage(1)}
-              disabled={currentPage === 1}
-              aria-label="First page"
-            >
-              <ChevronsLeft />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => changePage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              aria-label="Previous page"
-            >
-              <ChevronLeft />
-            </Button>
+              <Input
+                key={currentPage}
+                type="number"
+                min={1}
+                max={pageCount}
+                defaultValue={currentPage}
+                onBlur={(event) => submitPageInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.currentTarget.blur()
+                  }
+                }}
+                aria-label="Current page"
+                className="mx-1 h-7 w-10 rounded-md border-sky-200 bg-white px-1 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+              <span className="mr-1 text-xs text-slate-500">
+                of {pageCount}
+              </span>
 
-            <Input
-              key={currentPage}
-              type="number"
-              min={1}
-              max={pageCount}
-              defaultValue={currentPage}
-              onBlur={(event) => submitPageInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.currentTarget.blur()
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() =>
+                  changePage(Math.min(pageCount, currentPage + 1))
                 }
-              }}
-              aria-label="Current page"
-              className="mx-1 h-7 w-10 rounded-md border-sky-200 bg-white px-1 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            />
-            <span className="mr-1 text-xs text-slate-500">
-              of {pageCount}
-            </span>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() =>
-                changePage(Math.min(pageCount, currentPage + 1))
-              }
-              disabled={currentPage === pageCount}
-              aria-label="Next page"
-            >
-              <ChevronRight />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => changePage(pageCount)}
-              disabled={currentPage === pageCount}
-              aria-label="Last page"
-            >
-              <ChevronsRight />
-            </Button>
+                disabled={currentPage === pageCount}
+                aria-label="Next page"
+              >
+                <ChevronRight />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => changePage(pageCount)}
+                disabled={currentPage === pageCount}
+                aria-label="Last page"
+              >
+                <ChevronsRight />
+              </Button>
+            </div>
           </nav>
         )}
       </main>
