@@ -4,8 +4,11 @@ import {
   ArrowDownUp,
   BriefcaseBusiness,
   CloudOff,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   LoaderCircle,
   LogOut,
   RefreshCw,
@@ -17,6 +20,7 @@ import { JobLeadList } from "@/components/job-lead-list"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import type { Database, JobLead } from "@/lib/database.types"
 import { getErrorMessage } from "@/lib/errors"
 import {
@@ -48,8 +52,6 @@ type DashboardViewProps = {
   onRefresh: () => void | Promise<void>
   onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
 }
-
-const PAGE_SIZE = 20
 
 const previewLeads: JobLead[] = [
   {
@@ -132,6 +134,7 @@ function DashboardView({
     useState<JobLeadSortOrder>("newest")
   const [activeView, setActiveView] = useState<"all" | "priority">("all")
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const listStartRef = useRef<HTMLDivElement>(null)
   const priorityCount = leads.filter((lead) => lead.is_priority).length
   const sortedLeads = useMemo(
@@ -145,12 +148,12 @@ function DashboardView({
     [activeView, leads, sortOrder],
   )
   const leadLabel = leads.length === 1 ? "1 lead" : `${leads.length} leads`
-  const pageCount = Math.max(1, Math.ceil(sortedLeads.length / PAGE_SIZE))
+  const pageCount = Math.max(1, Math.ceil(sortedLeads.length / pageSize))
   const currentPage = Math.min(page, pageCount)
-  const firstVisibleLead = (currentPage - 1) * PAGE_SIZE
+  const firstVisibleLead = (currentPage - 1) * pageSize
   const paginatedLeads = sortedLeads.slice(
     firstVisibleLead,
-    firstVisibleLead + PAGE_SIZE,
+    firstVisibleLead + pageSize,
   )
 
   function changePage(nextPage: number) {
@@ -160,6 +163,20 @@ function DashboardView({
         behavior: "smooth",
         block: "start",
       }),
+    )
+  }
+
+  function changePageSize(nextPageSize: number) {
+    setPageSize(nextPageSize)
+    changePage(1)
+  }
+
+  function submitPageInput(value: string) {
+    const requestedPage = Number.parseInt(value, 10)
+    changePage(
+      Number.isFinite(requestedPage)
+        ? Math.min(pageCount, Math.max(1, requestedPage))
+        : currentPage,
     )
   }
 
@@ -341,47 +358,95 @@ function DashboardView({
           />
         </div>
 
-        {!isLoading && sortedLeads.length > PAGE_SIZE && (
+        {!isLoading && sortedLeads.length > pageSize && (
           <nav
-            className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-sky-200/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur sm:flex-row"
+            className="mt-6 flex flex-wrap items-center justify-end gap-1 rounded-xl border border-sky-200/70 bg-white/75 px-3 py-2 shadow-sm backdrop-blur"
             aria-label="Job lead pagination"
           >
-            <p className="text-xs text-slate-500">
-              Showing {firstVisibleLead + 1}–{Math.min(
-                firstVisibleLead + PAGE_SIZE,
-                sortedLeads.length,
-              )} of {sortedLeads.length}
-            </p>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-sky-200 bg-white hover:bg-sky-50"
-                onClick={() => changePage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft />
-                Previous
-              </Button>
-              <span className="min-w-20 text-center text-xs font-medium text-slate-600">
-                Page {currentPage} of {pageCount}
+            <label className="relative mr-2 flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium text-slate-600 hover:bg-sky-50">
+              <span>
+                {firstVisibleLead + 1}–{Math.min(
+                  firstVisibleLead + pageSize,
+                  sortedLeads.length,
+                )} of {sortedLeads.length}
               </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-sky-200 bg-white hover:bg-sky-50"
-                onClick={() =>
-                  changePage(Math.min(pageCount, currentPage + 1))
+              <ChevronDown className="size-3.5" aria-hidden="true" />
+              <select
+                className="absolute inset-0 cursor-pointer opacity-0"
+                value={pageSize}
+                onChange={(event) =>
+                  changePageSize(Number(event.target.value))
                 }
-                disabled={currentPage === pageCount}
+                aria-label="Jobs per page"
               >
-                Next
-                <ChevronRight />
-              </Button>
-            </div>
+                <option value={10}>10 jobs per page</option>
+                <option value={20}>20 jobs per page</option>
+                <option value={50}>50 jobs per page</option>
+              </select>
+            </label>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => changePage(1)}
+              disabled={currentPage === 1}
+              aria-label="First page"
+            >
+              <ChevronsLeft />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => changePage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft />
+            </Button>
+
+            <Input
+              key={currentPage}
+              type="number"
+              min={1}
+              max={pageCount}
+              defaultValue={currentPage}
+              onBlur={(event) => submitPageInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur()
+                }
+              }}
+              aria-label="Current page"
+              className="mx-1 h-7 w-10 rounded-md border-sky-200 bg-white px-1 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+            <span className="mr-1 text-xs text-slate-500">
+              of {pageCount}
+            </span>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() =>
+                changePage(Math.min(pageCount, currentPage + 1))
+              }
+              disabled={currentPage === pageCount}
+              aria-label="Next page"
+            >
+              <ChevronRight />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => changePage(pageCount)}
+              disabled={currentPage === pageCount}
+              aria-label="Last page"
+            >
+              <ChevronsRight />
+            </Button>
           </nav>
         )}
       </main>
