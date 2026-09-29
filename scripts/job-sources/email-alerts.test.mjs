@@ -115,14 +115,13 @@ describe("email job alerts", () => {
     })
   })
 
-  it("falls back to the LinkedIn alert time when page metadata is unavailable", async () => {
+  it("does not invent a LinkedIn posted date when metadata is unavailable", async () => {
     const jobs = await enrichEmailAlertPostedDates(
       [
         {
           source: "linkedin-email",
           sourceJobId: "4261234567",
           url: "https://www.linkedin.com/jobs/view/4261234567",
-          emailReceivedAt: "2026-09-29T11:23:29.000Z",
           sourceTimestampAt: null,
           sourceTimestampKind: null,
         },
@@ -131,8 +130,8 @@ describe("email job alerts", () => {
     )
 
     expect(jobs[0]).toMatchObject({
-      sourceTimestampAt: "2026-09-29T11:23:29.000Z",
-      sourceTimestampKind: "published",
+      sourceTimestampAt: null,
+      sourceTimestampKind: null,
     })
   })
 

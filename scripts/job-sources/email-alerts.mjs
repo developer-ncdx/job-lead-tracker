@@ -300,10 +300,6 @@ export function parseJobAlertEmail({
   const jobs = []
   const seen = new Set()
   const textPostingDates = extractTextPostingDates(text, messageDate)
-  const emailReceivedAt = new Date(messageDate)
-  const normalizedEmailReceivedAt = Number.isNaN(emailReceivedAt.getTime())
-    ? null
-    : emailReceivedAt.toISOString()
 
   for (const link of links) {
     const job = jobFromLink(link, body, subject)
@@ -324,8 +320,6 @@ export function parseJobAlertEmail({
         job.sourceTimestampAt = postedAt
         job.sourceTimestampKind = "published"
       }
-
-      job.emailReceivedAt = normalizedEmailReceivedAt
 
       seen.add(identity)
       jobs.push(job)
@@ -362,13 +356,16 @@ export async function enrichEmailAlertPostedDates(
     await Promise.all(
       batch.map(async (job) => {
         try {
-          const response = await fetchImpl(job.url, {
+          const response = await fetchImpl(
+            `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${job.sourceJobId}`,
+            {
             headers: {
               "user-agent": "Mozilla/5.0 (compatible; JobLeadTracker/1.0)",
             },
             redirect: "follow",
             signal: AbortSignal.timeout(15_000),
-          })
+            },
+          )
 
           if (!response.ok) {
             return
@@ -391,9 +388,7 @@ export async function enrichEmailAlertPostedDates(
   }
 
   return jobs.map((job) => {
-    const postedAt =
-      postedDates.get(`${job.source}:${job.sourceJobId}`) ??
-      (job.source === "linkedin-email" ? job.emailReceivedAt : null)
+    const postedAt = postedDates.get(`${job.source}:${job.sourceJobId}`)
 
     return postedAt
       ? {
