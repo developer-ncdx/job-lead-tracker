@@ -33,9 +33,6 @@ export function JobLeadCard({
   const postedAt = lead.source_timestamp_at
     ? formatPostedAt(lead.source_timestamp_at)
     : null
-  const firstSeenAt = !postedAt && !lead.source_timestamp_label
-    ? formatPostedAt(lead.first_seen_at)
-    : null
 
   async function handlePriority() {
     setIsUpdatingPriority(true)
@@ -99,14 +96,6 @@ export function JobLeadCard({
               {/^reposted\b/i.test(lead.source_timestamp_label)
                 ? lead.source_timestamp_label
                 : `Posted ${lead.source_timestamp_label}`}
-            </span>
-          )}
-
-          {firstSeenAt && (
-            <span className="col-start-2 row-start-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <CalendarDays className="size-3.5" aria-hidden="true" />
-              First seen{" "}
-              <time dateTime={lead.first_seen_at}>{firstSeenAt}</time>
             </span>
           )}
 

@@ -17,7 +17,7 @@ and lets the user sort them by date or save them to a priority list.
   EURES, Ayla Government, Nomado24, SmartRecruiters, Workable, Personio, and
   optional Jooble ingestion
 - Remote-only software-development role filtering and duplicate prevention
-- Source-aware Published, Created, Updated, and First seen timestamps
+- Source-aware provider posting timestamps and relative date labels
 - Loading, empty, stale-data, configuration, and mutation error states
 - React, TypeScript, Vite, Tailwind CSS, and shadcn components
 
@@ -161,7 +161,7 @@ source metadata. API timestamps retain their meaning:
 - Arbeitnow UK and Personio: `Created`
 - The Muse, Ayla, SmartRecruiters, and Workable: `Published`
 - Jooble: `Updated`
-- Missing source timestamp: `First seen`
+- Missing source timestamp and label: no date is displayed
 
 For a local recurring process:
 

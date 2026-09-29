@@ -91,8 +91,8 @@ describe("JobLeadCard", () => {
     expect(screen.queryByText(/first seen/i)).not.toBeInTheDocument()
   })
 
-  it("shows first-seen time when the provider supplies no date", () => {
-    render(
+  it("does not present first-seen time as the provider posting date", () => {
+    const { container } = render(
       <JobLeadCard
         lead={{
           ...lead,
@@ -104,9 +104,8 @@ describe("JobLeadCard", () => {
       />,
     )
 
-    expect(screen.getByText(/first seen/i).parentElement).toHaveTextContent(
-      "First seen Sep 20, 2026, 4:05 PM PHT",
-    )
+    expect(screen.queryByText(/first seen/i)).not.toBeInTheDocument()
+    expect(container.querySelector("time")).not.toBeInTheDocument()
   })
 
   it("adds a lead to the priority list", async () => {
