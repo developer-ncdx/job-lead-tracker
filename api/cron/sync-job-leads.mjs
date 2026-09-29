@@ -1,8 +1,13 @@
 import { runJobSync } from "../../scripts/sync-job-leads.mjs"
+import {
+  CRON_JOB_TITLE,
+  sendCronFailureEmail,
+} from "../../scripts/cron-failure-email.mjs"
 
 export function createCronHandler({
   sync = runJobSync,
   environment = process.env,
+  notifyFailure = sendCronFailureEmail,
 } = {}) {
   return async function GET(request) {
     const cronSecret = environment.CRON_SECRET?.trim()
@@ -21,6 +26,22 @@ export function createCronHandler({
         (source) => source.status === "failed",
       )
 
+      if (failedSources.length > 0) {
+        try {
+          await notifyFailure({
+            environment,
+            cronTitle: CRON_JOB_TITLE,
+            failedSources,
+            requestUrl: request.url,
+          })
+        } catch (notificationError) {
+          console.error(
+            "Could not send scheduled job sync failure email",
+            notificationError,
+          )
+        }
+      }
+
       return Response.json(
         {
           success: failedSources.length === 0,
@@ -35,6 +56,20 @@ export function createCronHandler({
       )
     } catch (error) {
       console.error("Scheduled job sync failed", error)
+
+      try {
+        await notifyFailure({
+          environment,
+          cronTitle: CRON_JOB_TITLE,
+          error,
+          requestUrl: request.url,
+        })
+      } catch (notificationError) {
+        console.error(
+          "Could not send scheduled job sync failure email",
+          notificationError,
+        )
+      }
 
       return Response.json(
         {

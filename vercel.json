@@ -9,7 +9,7 @@
   "crons": [
     {
       "path": "/api/cron/sync-job-leads",
-      "schedule": "0 0,12 * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }

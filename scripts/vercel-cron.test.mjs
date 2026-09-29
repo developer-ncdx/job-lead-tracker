@@ -31,6 +31,7 @@ describe("Vercel job sync cron", () => {
   })
 
   it("returns the completed sync summary", async () => {
+    const notifyFailure = vi.fn()
     const sync = vi.fn().mockResolvedValue({
       fetched: 50,
       matching: 12,
@@ -48,7 +49,11 @@ describe("Vercel job sync cron", () => {
       ],
     })
     const environment = { CRON_SECRET: "correct-secret" }
-    const handler = createCronHandler({ sync, environment })
+    const handler = createCronHandler({
+      sync,
+      environment,
+      notifyFailure,
+    })
     const response = await handler(cronRequest("correct-secret"))
 
     expect(response.status).toBe(200)
@@ -59,9 +64,11 @@ describe("Vercel job sync cron", () => {
       written: 10,
     })
     expect(sync).toHaveBeenCalledWith({ environment })
+    expect(notifyFailure).not.toHaveBeenCalled()
   })
 
   it("reports source failures as a failed invocation", async () => {
+    const notifyFailure = vi.fn().mockResolvedValue(undefined)
     const sync = vi.fn().mockResolvedValue({
       fetched: 0,
       matching: 0,
@@ -80,10 +87,46 @@ describe("Vercel job sync cron", () => {
     const handler = createCronHandler({
       sync,
       environment: { CRON_SECRET: "correct-secret" },
+      notifyFailure,
     })
     const response = await handler(cronRequest("correct-secret"))
 
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ success: false })
+    expect(notifyFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cronTitle: "Hourly job lead sync",
+        failedSources: [
+          expect.objectContaining({
+            name: "remoteok:global",
+            error: "upstream unavailable",
+          }),
+        ],
+      }),
+    )
+  })
+
+  it("emails an unexpected sync failure", async () => {
+    const syncError = new Error("database unavailable")
+    const notifyFailure = vi.fn().mockResolvedValue(undefined)
+    const handler = createCronHandler({
+      sync: vi.fn().mockRejectedValue(syncError),
+      environment: { CRON_SECRET: "correct-secret" },
+      notifyFailure,
+    })
+
+    const response = await handler(cronRequest("correct-secret"))
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: "database unavailable",
+    })
+    expect(notifyFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cronTitle: "Hourly job lead sync",
+        error: syncError,
+      }),
+    )
   })
 })

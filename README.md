@@ -218,8 +218,9 @@ extracting that source when actual OnlineJobs.ph job-alert messages arrive.
 ## Run the sync with Vercel Cron
 
 The production deployment includes a protected Vercel Function at
-`/api/cron/sync-job-leads`. `vercel.json` invokes it at 00:00 and 12:00 UTC,
-which is 8:00 AM and 8:00 PM in the Philippines.
+`/api/cron/sync-job-leads`. `vercel.json` invokes it at the start of every
+hour. A run with one or more failed sources returns a failure response and
+sends a notification email containing the cron title and source errors.
 
 Add these server-only variables under **Vercel → Project Settings →
 Environment Variables** for the Production environment, then redeploy:
@@ -244,14 +245,22 @@ JOB_ALERT_MAILBOX=INBOX
 JOB_ALERT_LOOKBACK_DAYS=14
 JOB_ALERT_MAX_MESSAGES=100
 JOB_ALERT_ENRICH_POSTED_DATES=true
+JOB_SYNC_FAILURE_EMAIL_TO=noxpwr@gmail.com
+JOB_SYNC_SMTP_HOST=smtp.gmail.com
+JOB_SYNC_SMTP_PORT=465
+JOB_SYNC_SMTP_SECURE=true
 ```
 
 Do not prefix server secrets with `VITE_`. Vercel automatically sends
 `CRON_SECRET` as a bearer token when it invokes the endpoint, and the function
 rejects requests without the matching token.
 
+The failure notifier sends through Gmail SMTP using the same Gmail address and
+app password as the IMAP importer. `JOB_SYNC_FAILURE_EMAIL_TO` defaults to
+`JOB_ALERT_EMAIL_USER` when omitted.
+
 After redeploying, verify the schedule under **Vercel → Project Settings →
-Cron Jobs** and use **View Logs** to inspect each run. The configured twice-daily
+Cron Jobs** and use **View Logs** to inspect each run. The configured hourly
 schedule requires Vercel Pro or Enterprise; Hobby projects permit only one cron
 invocation per day. For Hobby, change the schedule in `vercel.json` to
 `0 0 * * *` before deploying.
