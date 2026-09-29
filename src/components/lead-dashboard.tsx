@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import type { Session, SupabaseClient } from "@supabase/supabase-js"
 import {
   ArrowDownUp,
   BriefcaseBusiness,
-  Cloud,
   CloudOff,
+  ChevronLeft,
+  ChevronRight,
   LoaderCircle,
   LogOut,
   RefreshCw,
@@ -16,10 +17,8 @@ import { JobLeadList } from "@/components/job-lead-list"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import type { Database, JobLead } from "@/lib/database.types"
 import { getErrorMessage } from "@/lib/errors"
-import { formatPhilippineTime } from "@/lib/philippine-time"
 import {
   sortJobLeadsByTimestamp,
   useJobLeads,
@@ -41,7 +40,6 @@ type DashboardViewProps = {
   isRefreshing: boolean
   error: string | null
   realtimeWarning: string | null
-  lastSyncedAt: Date | null
   userLabel: string
   headerBadgeLabel?: string
   isSigningOut?: boolean
@@ -50,6 +48,8 @@ type DashboardViewProps = {
   onRefresh: () => void | Promise<void>
   onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
 }
+
+const PAGE_SIZE = 20
 
 const previewLeads: JobLead[] = [
   {
@@ -120,7 +120,6 @@ function DashboardView({
   isRefreshing,
   error,
   realtimeWarning,
-  lastSyncedAt,
   userLabel,
   headerBadgeLabel,
   isSigningOut = false,
@@ -132,6 +131,8 @@ function DashboardView({
   const [sortOrder, setSortOrder] =
     useState<JobLeadSortOrder>("newest")
   const [activeView, setActiveView] = useState<"all" | "priority">("all")
+  const [page, setPage] = useState(1)
+  const listStartRef = useRef<HTMLDivElement>(null)
   const priorityCount = leads.filter((lead) => lead.is_priority).length
   const sortedLeads = useMemo(
     () =>
@@ -144,6 +145,23 @@ function DashboardView({
     [activeView, leads, sortOrder],
   )
   const leadLabel = leads.length === 1 ? "1 lead" : `${leads.length} leads`
+  const pageCount = Math.max(1, Math.ceil(sortedLeads.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const firstVisibleLead = (currentPage - 1) * PAGE_SIZE
+  const paginatedLeads = sortedLeads.slice(
+    firstVisibleLead,
+    firstVisibleLead + PAGE_SIZE,
+  )
+
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    requestAnimationFrame(() =>
+      listStartRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
+    )
+  }
 
   return (
     <div className="relative min-h-svh overflow-hidden bg-gradient-to-b from-sky-50 via-[#f7fcff] to-blue-50/70">
@@ -211,22 +229,18 @@ function DashboardView({
             <h1 className="bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-3xl font-semibold tracking-[-0.04em] text-transparent sm:text-4xl">
               Job leads
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
-              {isPreview
-                ? "Preview the workspace while Supabase is being connected."
-                : "Review opportunities collected in Supabase, sorted by their source date."}
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               className="w-fit border-sky-200/80 bg-white/85 text-slate-700 shadow-sm hover:border-sky-300 hover:bg-sky-50"
-              onClick={() =>
+              onClick={() => {
+                setPage(1)
                 setSortOrder((current) =>
                   current === "newest" ? "oldest" : "newest",
                 )
-              }
+              }}
               disabled={isLoading}
               aria-label={`Sort by date: ${
                 sortOrder === "newest"
@@ -261,7 +275,10 @@ function DashboardView({
             aria-selected={activeView === "all"}
             variant="ghost"
             size="sm"
-            onClick={() => setActiveView("all")}
+            onClick={() => {
+              setActiveView("all")
+              setPage(1)
+            }}
             className={
               activeView === "all"
                 ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm hover:from-sky-500 hover:to-blue-600"
@@ -277,7 +294,10 @@ function DashboardView({
             aria-selected={activeView === "priority"}
             variant="ghost"
             size="sm"
-            onClick={() => setActiveView("priority")}
+            onClick={() => {
+              setActiveView("priority")
+              setPage(1)
+            }}
             className={
               activeView === "priority"
                 ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm hover:from-sky-500 hover:to-blue-600"
@@ -288,33 +308,6 @@ function DashboardView({
             Priority
             <span className="text-xs">{priorityCount}</span>
           </Button>
-        </div>
-
-        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            {isPreview ? (
-              <CloudOff
-                className="size-3.5 text-amber-700"
-                aria-hidden="true"
-              />
-            ) : (
-              <Cloud
-                className="size-3.5 text-sky-600"
-                aria-hidden="true"
-              />
-            )}
-            {isPreview
-              ? "Sample data — Supabase not connected"
-              : "Synced with Supabase"}
-          </span>
-          {lastSyncedAt && (
-            <>
-              <Separator orientation="vertical" className="h-3" />
-              <span>
-                Last checked {formatPhilippineTime(lastSyncedAt)}
-              </span>
-            </>
-          )}
         </div>
 
         {isPreview && (
@@ -336,15 +329,61 @@ function DashboardView({
           </Alert>
         )}
 
-        <JobLeadList
-          leads={sortedLeads}
-          isLoading={isLoading}
-          error={error}
-          onRetry={onRefresh}
-          onSetPriority={onSetPriority}
-          priorityOnly={activeView === "priority"}
-          readOnly={isPreview}
-        />
+        <div ref={listStartRef} className="scroll-mt-5">
+          <JobLeadList
+            leads={paginatedLeads}
+            isLoading={isLoading}
+            error={error}
+            onRetry={onRefresh}
+            onSetPriority={onSetPriority}
+            priorityOnly={activeView === "priority"}
+            readOnly={isPreview}
+          />
+        </div>
+
+        {!isLoading && sortedLeads.length > PAGE_SIZE && (
+          <nav
+            className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-sky-200/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur sm:flex-row"
+            aria-label="Job lead pagination"
+          >
+            <p className="text-xs text-slate-500">
+              Showing {firstVisibleLead + 1}–{Math.min(
+                firstVisibleLead + PAGE_SIZE,
+                sortedLeads.length,
+              )} of {sortedLeads.length}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-sky-200 bg-white hover:bg-sky-50"
+                onClick={() => changePage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft />
+                Previous
+              </Button>
+              <span className="min-w-20 text-center text-xs font-medium text-slate-600">
+                Page {currentPage} of {pageCount}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-sky-200 bg-white hover:bg-sky-50"
+                onClick={() =>
+                  changePage(Math.min(pageCount, currentPage + 1))
+                }
+                disabled={currentPage === pageCount}
+              >
+                Next
+                <ChevronRight />
+              </Button>
+            </div>
+          </nav>
+        )}
       </main>
 
       <footer className="relative mx-auto max-w-5xl px-4 py-8 text-center text-xs text-muted-foreground sm:px-6">
@@ -364,7 +403,6 @@ export function LeadDashboard({ client, session }: LeadDashboardProps) {
     isRefreshing,
     error,
     realtimeWarning,
-    lastSyncedAt,
     refresh,
     setPriority,
   } = useJobLeads(client, session.user.id)
@@ -395,7 +433,6 @@ export function LeadDashboard({ client, session }: LeadDashboardProps) {
       isRefreshing={isRefreshing}
       error={error}
       realtimeWarning={realtimeWarning}
-      lastSyncedAt={lastSyncedAt}
       userLabel={session.user.email ?? "Signed in"}
       isSigningOut={isSigningOut}
       onSignOut={handleSignOut}
@@ -414,7 +451,6 @@ export function PublicLeadDashboard({
     isRefreshing,
     error,
     realtimeWarning,
-    lastSyncedAt,
     refresh,
     setPriority,
   } = useJobLeads(client)
@@ -426,7 +462,6 @@ export function PublicLeadDashboard({
       isRefreshing={isRefreshing}
       error={error}
       realtimeWarning={realtimeWarning}
-      lastSyncedAt={lastSyncedAt}
       userLabel="No sign-in required"
       headerBadgeLabel="Public local mode"
       onRefresh={refresh}
@@ -443,7 +478,6 @@ export function PreviewLeadDashboard() {
       isRefreshing={false}
       error={null}
       realtimeWarning={null}
-      lastSyncedAt={null}
       userLabel="Local preview"
       isPreview
       onRefresh={() => undefined}
