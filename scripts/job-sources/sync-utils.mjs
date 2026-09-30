@@ -34,6 +34,7 @@ const SOURCE_PRIORITY = Object.freeze({
   "linkedin-email": 2,
   "indeed-email": 2,
   "onlinejobsph-email": 2,
+  "upwork-email": 2,
 })
 
 export function jobIdentity(job) {

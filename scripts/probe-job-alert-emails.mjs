@@ -20,7 +20,12 @@ if (!settings.enabled) {
       (job) => matchesTargetRole(job) && isRemoteOnlyJob(job),
     )
     const counts = Object.fromEntries(
-      ["linkedin-email", "indeed-email", "onlinejobsph-email"].map((source) => [
+      [
+        "linkedin-email",
+        "indeed-email",
+        "onlinejobsph-email",
+        "upwork-email",
+      ].map((source) => [
         source,
         {
           extracted: jobs.filter((job) => job.source === source).length,

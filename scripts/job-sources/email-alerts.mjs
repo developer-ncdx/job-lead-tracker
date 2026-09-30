@@ -9,6 +9,8 @@ import {
   inferRemote,
 } from "./shared.mjs"
 
+const GOOGLE_ALERTS_SENDER = "googlealerts-noreply@google.com"
+
 const PROVIDERS = Object.freeze([
   {
     source: "linkedin-email",
@@ -21,6 +23,10 @@ const PROVIDERS = Object.freeze([
   {
     source: "onlinejobsph-email",
     senderPattern: /(?:^|[.@])onlinejobs\.ph$/i,
+  },
+  {
+    source: "google-alerts",
+    senderPattern: /^googlealerts-noreply@google\.com$/i,
   },
 ])
 
@@ -67,7 +73,9 @@ function normalizeProviderUrl(value) {
     const hostname = url.hostname.toLowerCase().replace(/^www\./, "")
 
     if (hostname === "linkedin.com" || hostname.endsWith(".linkedin.com")) {
-      const match = url.pathname.match(/\/jobs\/view\/(\d+)/i)
+      const match = url.pathname.match(
+        /\/jobs\/view\/(?:[^/?#]*-)?(\d+)\/?$/i,
+      )
 
       return match
         ? {
@@ -103,6 +111,25 @@ function normalizeProviderUrl(value) {
         sourceJobId,
         url: canonicalizeUrl(`https://www.onlinejobs.ph${url.pathname}`),
       }
+    }
+
+    if (hostname === "upwork.com" || hostname.endsWith(".upwork.com")) {
+      if (
+        !url.pathname.startsWith("/jobs/") &&
+        !url.pathname.startsWith("/freelance-jobs/apply/")
+      ) {
+        return null
+      }
+
+      const match = url.pathname.match(/(?:\/|_)~(\d+)(?:\/|$)/)
+
+      return match
+        ? {
+            source: "upwork-email",
+            sourceJobId: `~${match[1]}`,
+            url: canonicalizeUrl(url.toString()),
+          }
+        : null
     }
   } catch {
     return null
@@ -203,6 +230,98 @@ function fallbackIdentity(messageId, url) {
     .slice(0, 32)
 }
 
+function googleAlertResults(html) {
+  for (const script of String(html).matchAll(
+    /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
+  )) {
+    if (
+      !/\bdata-scope=["']inboxmarkup["']/i.test(script[1]) ||
+      !/\btype=["']application\/json["']/i.test(script[1])
+    ) {
+      continue
+    }
+
+    try {
+      const markup = JSON.parse(script[2])
+
+      if (markup.publisher?.name !== "Google Alerts") {
+        continue
+      }
+
+      const widgets = Array.isArray(markup.cards)
+        ? markup.cards.flatMap((card) =>
+            Array.isArray(card.widgets) ? card.widgets : [],
+          )
+        : []
+      const results = widgets
+        .filter((widget) => widget.type === "LINK")
+        .map((widget) => ({
+          url: widget.url,
+          title: widget.title,
+          description: widget.description,
+        }))
+
+      if (results.length > 0) {
+        return results
+      }
+    } catch {
+      // Fall back to visible result links when inbox markup is malformed.
+    }
+  }
+
+  return extractAnchors(html).map((link) => ({
+    url: link.href,
+    title: link.text,
+    // Without a structured result boundary, neighboring snippets must not
+    // make an unrelated onsite posting appear remote.
+    description: "",
+  }))
+}
+
+function parseGoogleAlertEmail(html) {
+  const jobs = []
+  const seen = new Set()
+
+  for (const result of googleAlertResults(html)) {
+    const providerUrl = normalizeProviderUrl(result.url)
+    const title = usableTitle(result.title)
+
+    if (!providerUrl || !title) {
+      continue
+    }
+
+    const identity = `${providerUrl.source}:${providerUrl.sourceJobId}`
+
+    if (seen.has(identity)) {
+      continue
+    }
+
+    seen.add(identity)
+    const description = cleanText(result.description)
+    const isRemote = inferRemote(title, description)
+
+    jobs.push({
+      ...providerUrl,
+      title,
+      company: "",
+      location: isRemote ? "Remote" : "",
+      description,
+      isRemote,
+      sourceTimestampAt: null,
+      sourceTimestampKind: null,
+      sourceTimestampLabel: null,
+    })
+  }
+
+  return jobs
+}
+
+function isAuthenticatedGoogleAlert(authenticationResults) {
+  return /\bdmarc=pass\b[^;]*\bheader\.from=google\.com\b/i.test(
+    String(authenticationResults ?? ""),
+  )
+}
+
 export function identifyEmailAlertProvider(addresses) {
   const normalized = addresses.map((address) => String(address).toLowerCase())
 
@@ -217,6 +336,7 @@ export function parseJobAlertEmail({
   html = "",
   text = "",
   messageId = "",
+  authenticationResults = "",
 } = {}) {
   const addresses = from.map((entry) =>
     typeof entry === "string" ? entry : entry?.address,
@@ -225,6 +345,13 @@ export function parseJobAlertEmail({
 
   if (!provider) {
     return []
+  }
+
+  if (provider === "google-alerts") {
+    return /^Google Alert\s*-/i.test(subject) &&
+      isAuthenticatedGoogleAlert(authenticationResults)
+      ? parseGoogleAlertEmail(html)
+      : []
   }
 
   const body = String(html || text || "")
@@ -445,43 +572,73 @@ export async function fetchEmailAlertJobs(
     logger: false,
   })
 
-  let lock
-
   try {
     await client.connect()
-    lock = await client.getMailboxLock(settings.mailbox, { readOnly: true })
     const since = new Date(Date.now() - settings.lookbackDays * 86_400_000)
-    const allUids = await client.search({ since }, { uid: true })
-    const uids = allUids.slice(-settings.maxMessages)
-    const jobs = []
+    const folders = await client.list()
+    const spamMailbox = folders.find(
+      (folder) => folder.specialUse === "\\Junk",
+    )?.path
+    const mailboxes = [
+      { path: settings.mailbox, googleOnly: false },
+    ]
 
-    if (uids.length === 0) {
-      return jobs
+    if (spamMailbox && spamMailbox !== settings.mailbox) {
+      mailboxes.push({ path: spamMailbox, googleOnly: true })
     }
 
-    for await (const message of client.fetch(
-      uids,
-      { envelope: true, source: true, uid: true },
-      { uid: true },
-    )) {
-      const senderAddresses =
-        message.envelope?.from?.map((entry) => entry.address).filter(Boolean) ?? []
+    const jobs = []
 
-      if (!identifyEmailAlertProvider(senderAddresses)) {
-        continue
+    for (const mailbox of mailboxes) {
+      const lock = await client.getMailboxLock(mailbox.path, {
+        readOnly: true,
+      })
+
+      try {
+        const search = mailbox.googleOnly
+          ? { since, from: GOOGLE_ALERTS_SENDER }
+          : { since }
+        const allUids = await client.search(search, { uid: true })
+        const uids = allUids.slice(-settings.maxMessages)
+
+        if (uids.length === 0) {
+          continue
+        }
+
+        for await (const message of client.fetch(
+          uids,
+          { envelope: true, source: true, uid: true },
+          { uid: true },
+        )) {
+          const senderAddresses =
+            message.envelope?.from?.map((entry) => entry.address)
+              .filter(Boolean) ?? []
+
+          const provider = identifyEmailAlertProvider(senderAddresses)
+
+          if (
+            !provider ||
+            (mailbox.googleOnly && provider !== "google-alerts")
+          ) {
+            continue
+          }
+
+          const parsed = await simpleParser(message.source)
+          jobs.push(
+            ...parseJobAlertEmail({
+              from: parsed.from?.value ?? [],
+              subject: parsed.subject ?? "",
+              html: typeof parsed.html === "string" ? parsed.html : "",
+              text: parsed.text ?? "",
+              messageId: parsed.messageId ?? String(message.uid),
+              authenticationResults:
+                parsed.headers.get("authentication-results"),
+            }),
+          )
+        }
+      } finally {
+        lock.release()
       }
-
-      const parsed = await simpleParser(message.source)
-      jobs.push(
-        ...parseJobAlertEmail({
-          from: parsed.from?.value ?? [],
-          subject: parsed.subject ?? "",
-          html: typeof parsed.html === "string" ? parsed.html : "",
-          text: parsed.text ?? "",
-          messageId: parsed.messageId ?? String(message.uid),
-          messageDate: parsed.date ?? message.envelope?.date ?? new Date(),
-        }),
-      )
     }
 
     return settings.enrichPostedDates
@@ -496,8 +653,6 @@ export async function fetchEmailAlertJobs(
 
     throw error
   } finally {
-    lock?.release()
-
     if (client.usable) {
       await client.logout().catch(() => client.close())
     } else {
