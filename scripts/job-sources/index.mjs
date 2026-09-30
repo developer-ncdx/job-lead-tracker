@@ -75,6 +75,12 @@ export async function fetchConfiguredSourceResults(
   config,
   { environment = process.env, fetchImpl = fetch } = {},
 ) {
+  const disabledPublicFeeds = new Set(
+    (environment.JOB_DISABLED_PUBLIC_FEEDS ?? "")
+      .split(",")
+      .map((source) => source.trim().toLowerCase())
+      .filter(Boolean),
+  )
   const boardTasks = Object.entries(BOARD_ADAPTERS).flatMap(
     ([source, fetchJobs]) =>
       config[source].map((boardConfig) =>
@@ -86,7 +92,10 @@ export async function fetchConfiguredSourceResults(
       ),
   )
   const publicFeedTasks = Object.entries(PUBLIC_FEED_ADAPTERS)
-    .filter(([source]) => config[source]?.enabled !== false)
+    .filter(
+      ([source]) =>
+        config[source]?.enabled !== false && !disabledPublicFeeds.has(source),
+    )
     .map(([source, fetchJobs]) =>
       captureSourceResult(source, `${source}:global`, () =>
         fetchJobs(config[source], { fetchImpl, environment }),
@@ -95,7 +104,16 @@ export async function fetchConfiguredSourceResults(
   const results = await Promise.all([...boardTasks, ...publicFeedTasks])
 
   for (const source of Object.keys(PUBLIC_FEED_ADAPTERS)) {
-    if (config[source]?.enabled === false) {
+    if (disabledPublicFeeds.has(source)) {
+      results.push({
+        source,
+        name: `${source}:global`,
+        status: "skipped",
+        jobs: [],
+        durationMs: 0,
+        error: "disabled by JOB_DISABLED_PUBLIC_FEEDS",
+      })
+    } else if (config[source]?.enabled === false) {
       results.push({
         source,
         name: `${source}:global`,

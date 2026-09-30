@@ -106,6 +106,28 @@ describe("Vercel job sync cron", () => {
     )
   })
 
+  it("reports a sync that could not write to Supabase", async () => {
+    const notifyFailure = vi.fn().mockResolvedValue(undefined)
+    const handler = createCronHandler({
+      sync: vi.fn().mockResolvedValue({
+        dryRun: true,
+        missingSupabaseValues: ["SUPABASE_SERVICE_ROLE_KEY"],
+        sourceSummaries: [],
+      }),
+      environment: { CRON_SECRET: "correct-secret" },
+      notifyFailure,
+    })
+
+    const response = await handler(cronRequest("correct-secret"))
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: expect.stringContaining("SUPABASE_SERVICE_ROLE_KEY"),
+    })
+    expect(notifyFailure).toHaveBeenCalledOnce()
+  })
+
   it("emails an unexpected sync failure", async () => {
     const syncError = new Error("database unavailable")
     const notifyFailure = vi.fn().mockResolvedValue(undefined)

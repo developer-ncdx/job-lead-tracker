@@ -22,6 +22,13 @@ export function createCronHandler({
 
     try {
       const summary = await sync({ environment })
+      if (summary.dryRun) {
+        throw new Error(
+          `Scheduled job sync could not write to Supabase; missing ${
+            summary.missingSupabaseValues?.join(", ") || "configuration"
+          }`,
+        )
+      }
       const failedSources = summary.sourceSummaries.filter(
         (source) => source.status === "failed",
       )

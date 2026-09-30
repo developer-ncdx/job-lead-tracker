@@ -236,6 +236,7 @@ CRON_SECRET=generate-at-least-16-random-characters
 JOOBLE_API_KEY=
 THE_MUSE_API_KEY=
 JOB_SOURCES_CONFIG=job-sources.config.json
+JOB_DISABLED_PUBLIC_FEEDS=
 JOB_ALERT_EMAIL_ENABLED=true
 JOB_ALERT_IMAP_HOST=imap.gmail.com
 JOB_ALERT_IMAP_PORT=993
@@ -260,6 +261,11 @@ rejects requests without the matching token.
 The failure notifier sends through Gmail SMTP using the same Gmail address and
 app password as the IMAP importer. `JOB_SYNC_FAILURE_EMAIL_TO` defaults to
 `JOB_ALERT_EMAIL_USER` when omitted.
+
+If a public feed blocks requests from Vercel, set
+`JOB_DISABLED_PUBLIC_FEEDS` to its source key (comma-separated for multiple
+feeds). For example, Production currently sets it to `arbeitnowuk` because
+that provider returns HTTP 403 to Vercel. Local syncs still use the feed.
 
 Each hourly run also revisits up to
 `JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT` existing LinkedIn rows whose provider
