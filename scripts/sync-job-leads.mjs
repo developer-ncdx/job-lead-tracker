@@ -20,6 +20,31 @@ function matchesSyncCriteria(job) {
   return matchesTargetRole(job) && isRemoteOnlyJob(job)
 }
 
+export function summarizeLinkedInTimestampBackfill(backfill) {
+  const failureCount = backfill.failures.length
+  const skippedLabelCount = backfill.labelsSkipped ?? 0
+  const errors = [
+    failureCount > 0 &&
+      `${failureCount} LinkedIn page request(s) failed`,
+    skippedLabelCount > 0 &&
+      `${skippedLabelCount} relative date label(s) skipped because ` +
+        "source_timestamp_label is not deployed",
+  ].filter(Boolean)
+
+  return {
+    source: "linkedin-email",
+    name: "linkedin-email:timestamp-backfill",
+    status: skippedLabelCount > 0
+      ? "failed"
+      : failureCount > 0
+        ? "warning"
+        : "ok",
+    fetched: backfill.attempted,
+    matching: backfill.updated,
+    error: errors.length > 0 ? errors.join("; ") : null,
+  }
+}
+
 async function loadExistingLeads(client, userId, jobs) {
   const existingByIdentity = new Map()
   const jobsBySource = new Map()
@@ -178,27 +203,9 @@ export async function runJobSync({
       limit: environment.JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT,
     },
   )
-  const backfillFailureCount = linkedinTimestampBackfill.failures.length
-  const skippedLabelCount = linkedinTimestampBackfill.labelsSkipped ?? 0
-  const backfillHasIssues =
-    backfillFailureCount > 0 || skippedLabelCount > 0
-
-  const backfillErrors = [
-    backfillFailureCount > 0 &&
-      `${backfillFailureCount} LinkedIn page request(s) failed`,
-    skippedLabelCount > 0 &&
-      `${skippedLabelCount} relative date label(s) skipped because ` +
-        "source_timestamp_label is not deployed",
-  ].filter(Boolean)
-
-  sourceSummaries.push({
-    source: "linkedin-email",
-    name: "linkedin-email:timestamp-backfill",
-    status: backfillHasIssues ? "failed" : "ok",
-    fetched: linkedinTimestampBackfill.attempted,
-    matching: linkedinTimestampBackfill.updated,
-    error: backfillHasIssues ? backfillErrors.join("; ") : null,
-  })
+  sourceSummaries.push(
+    summarizeLinkedInTimestampBackfill(linkedinTimestampBackfill),
+  )
 
   return {
     dryRun: false,

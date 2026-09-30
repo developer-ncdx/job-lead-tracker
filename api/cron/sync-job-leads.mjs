@@ -32,6 +32,13 @@ export function createCronHandler({
       const failedSources = summary.sourceSummaries.filter(
         (source) => source.status === "failed",
       )
+      const warnings = summary.sourceSummaries.filter(
+        (source) => source.status === "warning",
+      )
+
+      if (warnings.length > 0) {
+        console.warn("Scheduled job sync completed with warnings", warnings)
+      }
 
       if (failedSources.length > 0) {
         try {

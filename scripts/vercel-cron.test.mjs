@@ -106,6 +106,56 @@ describe("Vercel job sync cron", () => {
     )
   })
 
+  it("keeps optional posting-date backfill warnings non-fatal", async () => {
+    const notifyFailure = vi.fn()
+    const warningLog = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    try {
+      const handler = createCronHandler({
+        sync: vi.fn().mockResolvedValue({
+          fetched: 20,
+          matching: 17,
+          unique: 17,
+          written: 17,
+          sourceSummaries: [
+            {
+              name: "email-alerts:gmail",
+              status: "ok",
+              fetched: 20,
+              matching: 17,
+              error: null,
+            },
+            {
+              name: "linkedin-email:timestamp-backfill",
+              status: "warning",
+              fetched: 6,
+              matching: 0,
+              error: "6 LinkedIn page request(s) failed",
+            },
+          ],
+        }),
+        environment: { CRON_SECRET: "correct-secret" },
+        notifyFailure,
+      })
+
+      const response = await handler(cronRequest("correct-secret"))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        success: true,
+        written: 17,
+        sources: [
+          expect.objectContaining({ status: "ok" }),
+          expect.objectContaining({ status: "warning" }),
+        ],
+      })
+      expect(warningLog).toHaveBeenCalledOnce()
+      expect(notifyFailure).not.toHaveBeenCalled()
+    } finally {
+      warningLog.mockRestore()
+    }
+  })
+
   it("reports a sync that could not write to Supabase", async () => {
     const notifyFailure = vi.fn().mockResolvedValue(undefined)
     const handler = createCronHandler({
