@@ -114,7 +114,7 @@ describe("JobLeadCard", () => {
     expect(screen.queryByText(/posted sep/i)).not.toBeInTheDocument()
   })
 
-  it("does not present first-seen time as the provider posting date", () => {
+  it("labels first-seen time when the provider posting date is unavailable", () => {
     const { container } = render(
       <JobLeadCard
         lead={{
@@ -127,8 +127,14 @@ describe("JobLeadCard", () => {
       />,
     )
 
-    expect(screen.queryByText(/first seen/i)).not.toBeInTheDocument()
-    expect(container.querySelector("time")).not.toBeInTheDocument()
+    expect(
+      screen.getByText("First seen Sep 20, 2026, 4:05 PM PHT"),
+    ).toBeInTheDocument()
+    expect(container.querySelector("time")).toHaveAttribute(
+      "datetime",
+      lead.first_seen_at,
+    )
+    expect(screen.queryByText(/posted sep/i)).not.toBeInTheDocument()
   })
 
   it("adds a lead to the priority list", async () => {

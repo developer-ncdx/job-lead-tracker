@@ -51,6 +51,10 @@ export function JobLeadCard({
   const estimatedPostedDate = estimatedPostedAt
     ? formatPhilippineDate(estimatedPostedAt)
     : null
+  const firstSeenAt =
+    !postedAt && !lead.source_timestamp_label
+      ? formatPhilippineDateTime(lead.first_seen_at)
+      : null
 
   async function handlePriority() {
     setIsUpdatingPriority(true)
@@ -119,6 +123,15 @@ export function JobLeadCard({
               ) : (
                 formatRelativePostedAt(lead.source_timestamp_label)
               )}
+            </span>
+          )}
+
+          {firstSeenAt && (
+            <span className="col-start-2 row-start-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <CalendarDays className="size-3.5" aria-hidden="true" />
+              <time dateTime={lead.first_seen_at}>
+                First seen {firstSeenAt}
+              </time>
             </span>
           )}
 
