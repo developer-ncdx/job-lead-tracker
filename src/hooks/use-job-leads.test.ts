@@ -86,27 +86,71 @@ function createClientMock(fetchError: { message: string } | null = null) {
 }
 
 describe("useJobLeads", () => {
-  it("uses first-seen time as the sorting fallback", () => {
-    const newlyDiscoveredLead: JobLead = {
+  it("sorts by the provider posting date, not discovery time", () => {
+    const olderPosting: JobLead = {
       ...lead,
-      id: "lead-2",
+      id: "older-posting",
+      first_seen_at: "2026-09-30T08:00:00.000Z",
+      created_at: "2026-09-30T08:00:00.000Z",
+    }
+    const newerPosting: JobLead = {
+      ...lead,
+      id: "newer-posting",
+      source_timestamp_at: "2026-09-25T08:00:00.000Z",
+    }
+    const undated: JobLead = {
+      ...lead,
+      id: "undated",
       source_timestamp_at: null,
       source_timestamp_kind: null,
-      first_seen_at: "2026-09-24T08:00:00.000Z",
-      created_at: "2026-09-24T08:00:00.000Z",
+      first_seen_at: "2026-09-30T09:00:00.000Z",
+      created_at: "2026-09-30T09:00:00.000Z",
     }
 
     expect(
-      sortJobLeadsByTimestamp([lead, newlyDiscoveredLead]).map(
-        ({ id }) => id,
-      ),
-    ).toEqual(["lead-2", "lead-1"])
+      sortJobLeadsByTimestamp([
+        olderPosting,
+        undated,
+        newerPosting,
+      ]).map(({ id }) => id),
+    ).toEqual(["newer-posting", "older-posting", "undated"])
     expect(
       sortJobLeadsByTimestamp(
-        [lead, newlyDiscoveredLead],
+        [olderPosting, undated, newerPosting],
         "oldest",
       ).map(({ id }) => id),
-    ).toEqual(["lead-1", "lead-2"])
+    ).toEqual(["older-posting", "newer-posting", "undated"])
+  })
+
+  it("sorts approximate provider posting dates alongside exact ones", () => {
+    const relativePosting: JobLead = {
+      ...lead,
+      id: "relative-posting",
+      source_timestamp_at: null,
+      source_timestamp_kind: null,
+      source_timestamp_label: "3 days ago",
+      last_seen_at: "2026-09-30T08:00:00.000Z",
+      first_seen_at: "2026-09-30T08:00:00.000Z",
+    }
+    const newerPosting: JobLead = {
+      ...lead,
+      id: "newer-posting",
+      source_timestamp_at: "2026-09-29T08:00:00.000Z",
+    }
+
+    expect(
+      sortJobLeadsByTimestamp([
+        relativePosting,
+        lead,
+        newerPosting,
+      ]).map(({ id }) => id),
+    ).toEqual(["newer-posting", "relative-posting", "lead-1"])
+    expect(
+      sortJobLeadsByTimestamp(
+        [relativePosting, lead, newerPosting],
+        "oldest",
+      ).map(({ id }) => id),
+    ).toEqual(["lead-1", "relative-posting", "newer-posting"])
   })
 
   it("fetches leads, then refetches after setting priority", async () => {

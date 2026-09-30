@@ -54,6 +54,7 @@ const RELATIVE_TIME_PATTERNS = [
   { pattern: /(\d+)\s*months?\s+ago/i, duration: 30 * DAY },
   { pattern: /(\d+)\s*分前/u, duration: MINUTE },
   { pattern: /(\d+)\s*時間前/u, duration: HOUR },
+  { pattern: /(\d+)\s*(?:小时|小時)前/u, duration: HOUR },
   { pattern: /(\d+)\s*日前/u, duration: DAY },
   { pattern: /(\d+)\s*週間前/u, duration: 7 * DAY },
   { pattern: /(\d+)\s*(?:か月|ヶ月|月)前/u, duration: 30 * DAY },

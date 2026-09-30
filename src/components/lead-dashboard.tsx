@@ -262,7 +262,7 @@ function DashboardView({
                 )
               }}
               disabled={isLoading}
-              aria-label={`Sort by date: ${
+              aria-label={`Sort by posting date: ${
                 sortOrder === "newest"
                   ? "newest first"
                   : "oldest first"

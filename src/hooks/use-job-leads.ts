@@ -6,6 +6,7 @@ import type {
   JobLead,
 } from "@/lib/database.types"
 import { getErrorMessage } from "@/lib/errors"
+import { estimateRelativeDate } from "@/lib/philippine-time"
 
 type FetchOptions = {
   background?: boolean
@@ -13,19 +14,20 @@ type FetchOptions = {
 
 const PAGE_SIZE = 500
 
-function parseTimestamp(...values: Array<string | null | undefined>) {
-  for (const value of values) {
-    if (!value) {
-      continue
-    }
-
-    const timestamp = Date.parse(value)
+function postingTimestamp(lead: JobLead) {
+  if (lead.source_timestamp_at) {
+    const timestamp = Date.parse(lead.source_timestamp_at)
     if (Number.isFinite(timestamp)) {
       return timestamp
     }
   }
 
-  return 0
+  return lead.source_timestamp_label
+    ? estimateRelativeDate(
+        lead.source_timestamp_label,
+        lead.last_seen_at,
+      )?.getTime() ?? null
+    : null
 }
 
 export type JobLeadSortOrder = "newest" | "oldest"
@@ -35,19 +37,19 @@ export function sortJobLeadsByTimestamp(
   sortOrder: JobLeadSortOrder = "newest",
 ) {
   return [...leads].sort((left, right) => {
-    const rightTimestamp = parseTimestamp(
-      right.source_timestamp_at,
-      right.first_seen_at,
-      right.created_at,
-    )
-    const leftTimestamp = parseTimestamp(
-      left.source_timestamp_at,
-      left.first_seen_at,
-      left.created_at,
-    )
+    const rightTimestamp = postingTimestamp(right)
+    const leftTimestamp = postingTimestamp(left)
+
+    if (leftTimestamp === null || rightTimestamp === null) {
+      if (leftTimestamp === null && rightTimestamp === null) {
+        return left.id.localeCompare(right.id)
+      }
+
+      return leftTimestamp === null ? 1 : -1
+    }
 
     return sortOrder === "newest"
-      ? rightTimestamp - leftTimestamp || right.id.localeCompare(left.id)
+      ? rightTimestamp - leftTimestamp || left.id.localeCompare(right.id)
       : leftTimestamp - rightTimestamp || left.id.localeCompare(right.id)
   })
 }

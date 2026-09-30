@@ -38,5 +38,8 @@ describe("Philippine time formatting", () => {
     expect(
       estimateRelativeDate("6 hours ago", observedAt)?.toISOString(),
     ).toBe("2026-09-29T13:40:00.000Z")
+    expect(
+      estimateRelativeDate("17 小时前", observedAt)?.toISOString(),
+    ).toBe("2026-09-29T02:40:00.000Z")
   })
 })
