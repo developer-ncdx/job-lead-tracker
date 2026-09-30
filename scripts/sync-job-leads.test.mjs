@@ -13,7 +13,7 @@ describe("LinkedIn date backfill sync summary", () => {
       status: "warning",
       fetched: 6,
       matching: 0,
-      error: "1 LinkedIn page request(s) failed",
+      error: "1 LinkedIn page request(s) failed (HTTP 429: 1)",
     })
   })
 
@@ -26,6 +26,21 @@ describe("LinkedIn date backfill sync summary", () => {
     })).toMatchObject({
       status: "failed",
       error: expect.stringContaining("source_timestamp_label is not deployed"),
+    })
+  })
+
+  it("keeps actual database write failures fatal even when LinkedIn pages also fail", () => {
+    expect(summarizeLinkedInTimestampBackfill({
+      attempted: 2,
+      updated: 0,
+      labelsSkipped: 0,
+      failures: [
+        { sourceJobId: "123", kind: "provider", error: "HTTP 429" },
+        { sourceJobId: "456", kind: "database", error: "database unavailable" },
+      ],
+    })).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("1 database update(s) failed"),
     })
   })
 

@@ -450,12 +450,16 @@ function providerPostingUrl(job) {
 
 export async function enrichEmailAlertPostedDates(
   jobs,
-  { fetchImpl = fetch } = {},
+  { fetchImpl = fetch, includeLinkedIn = false } = {},
 ) {
   const postingMetadata = new Map()
   const pending = [...new Map(
     jobs
-      .filter((job) => !job.sourceTimestampAt)
+      .filter(
+        (job) =>
+          !job.sourceTimestampAt &&
+          (includeLinkedIn || job.source !== "linkedin-email"),
+      )
       .map((job) => [`${job.source}:${job.sourceJobId}`, job]),
   ).values()]
 

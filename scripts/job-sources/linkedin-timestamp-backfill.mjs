@@ -120,9 +120,23 @@ export async function backfillLinkedInTimestamps(
 
     await Promise.all(
       batch.map(async (row) => {
-        try {
-          const metadata = await fetchPostingMetadata(row, fetchImpl)
+        let metadata
 
+        try {
+          metadata = await fetchPostingMetadata(row, fetchImpl)
+        } catch (backfillError) {
+          failures.push({
+            sourceJobId: row.source_job_id,
+            kind: "provider",
+            error:
+              backfillError instanceof Error
+                ? backfillError.message
+                : String(backfillError),
+          })
+          return
+        }
+
+        try {
           if (!metadata) {
             unresolved += 1
             return
@@ -157,6 +171,7 @@ export async function backfillLinkedInTimestamps(
         } catch (backfillError) {
           failures.push({
             sourceJobId: row.source_job_id,
+            kind: "database",
             error:
               backfillError instanceof Error
                 ? backfillError.message

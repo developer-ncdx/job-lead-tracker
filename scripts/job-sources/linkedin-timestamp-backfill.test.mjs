@@ -129,7 +129,37 @@ describe("LinkedIn timestamp backfill", () => {
       updated: 0,
       unresolved: 0,
       failures: [
-        { sourceJobId: "4427682709", error: "HTTP 429" },
+        {
+          sourceJobId: "4427682709",
+          kind: "provider",
+          error: "HTTP 429",
+        },
+      ],
+    })
+  })
+
+  it("identifies database update failures separately from LinkedIn access failures", async () => {
+    const { client } = createClient([row], {
+      updateError: { message: "database unavailable" },
+    })
+
+    const summary = await backfillLinkedInTimestamps(client, {
+      fetchImpl: vi.fn().mockResolvedValue(
+        new Response(
+          '<span class="posted-time-ago__text">Reposted 2 days ago</span>',
+        ),
+      ),
+    })
+
+    expect(summary).toMatchObject({
+      attempted: 1,
+      updated: 0,
+      failures: [
+        {
+          sourceJobId: "4427682709",
+          kind: "database",
+          error: "database unavailable",
+        },
       ],
     })
   })

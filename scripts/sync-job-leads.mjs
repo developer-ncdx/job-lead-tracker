@@ -21,11 +21,38 @@ function matchesSyncCriteria(job) {
 }
 
 export function summarizeLinkedInTimestampBackfill(backfill) {
-  const failureCount = backfill.failures.length
+  const databaseFailureCount = backfill.failures.filter(
+    (failure) => failure.kind === "database",
+  ).length
+  const providerFailures = backfill.failures.filter(
+    (failure) => failure.kind !== "database",
+  )
+  const providerFailureCount = providerFailures.length
+  const providerFailureReasons = new Map()
+
+  for (const failure of providerFailures) {
+    const reason = /^HTTP \d{3}$/.test(failure.error)
+      ? failure.error
+      : /timeout|timed out/i.test(failure.error)
+        ? "timeout"
+        : /fetch failed|network/i.test(failure.error)
+          ? "network error"
+          : "other error"
+    providerFailureReasons.set(
+      reason,
+      (providerFailureReasons.get(reason) ?? 0) + 1,
+    )
+  }
+
+  const providerFailureDetail = [...providerFailureReasons]
+    .map(([reason, count]) => `${reason}: ${count}`)
+    .join(", ")
   const skippedLabelCount = backfill.labelsSkipped ?? 0
   const errors = [
-    failureCount > 0 &&
-      `${failureCount} LinkedIn page request(s) failed`,
+    providerFailureCount > 0 &&
+      `${providerFailureCount} LinkedIn page request(s) failed (${providerFailureDetail})`,
+    databaseFailureCount > 0 &&
+      `${databaseFailureCount} database update(s) failed during LinkedIn date backfill`,
     skippedLabelCount > 0 &&
       `${skippedLabelCount} relative date label(s) skipped because ` +
         "source_timestamp_label is not deployed",
@@ -34,9 +61,9 @@ export function summarizeLinkedInTimestampBackfill(backfill) {
   return {
     source: "linkedin-email",
     name: "linkedin-email:timestamp-backfill",
-    status: skippedLabelCount > 0
+    status: skippedLabelCount > 0 || databaseFailureCount > 0
       ? "failed"
-      : failureCount > 0
+      : providerFailureCount > 0
         ? "warning"
         : "ok",
     fetched: backfill.attempted,

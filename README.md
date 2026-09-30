@@ -267,7 +267,9 @@ If a public feed blocks requests from Vercel, set
 feeds). For example, Production currently sets it to `arbeitnowuk` because
 that provider returns HTTP 403 to Vercel. Local syncs still use the feed.
 
-Each hourly run also revisits up to
+The email importer enriches dates for supported non-LinkedIn postings. LinkedIn
+pages are requested only by the bounded backfill, avoiding duplicate page
+requests for every scanned alert. Each hourly run revisits up to
 `JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT` existing LinkedIn rows whose provider
 time is empty. The default is deliberately small to avoid LinkedIn request
 throttling. It stores only an exact timestamp or relative label returned by

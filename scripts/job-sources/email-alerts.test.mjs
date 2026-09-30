@@ -365,6 +365,7 @@ describe("email job alerts", () => {
         },
       ],
       {
+        includeLinkedIn: true,
         fetchImpl: async () =>
           new Response(
             '<script type="application/ld+json">' +
@@ -392,7 +393,10 @@ describe("email job alerts", () => {
           sourceTimestampKind: null,
         },
       ],
-      { fetchImpl: async () => new Response("", { status: 429 }) },
+      {
+        includeLinkedIn: true,
+        fetchImpl: async () => new Response("", { status: 429 }),
+      },
     )
 
     expect(jobs[0]).toMatchObject({
@@ -414,6 +418,7 @@ describe("email job alerts", () => {
         },
       ],
       {
+        includeLinkedIn: true,
         fetchImpl: async () =>
           new Response(
             '<span class="posted-time-ago__text">Reposted 2 days ago</span>',
@@ -426,6 +431,41 @@ describe("email job alerts", () => {
       sourceTimestampKind: null,
       sourceTimestampLabel: "Reposted 2 days ago",
     })
+  })
+
+  it("leaves LinkedIn pages for the bounded backfill while enriching other providers", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        '<script type="application/ld+json">' +
+          '{"@type":"JobPosting","datePosted":"2026-09-27T09:01:19.000Z"}' +
+          "</script>",
+      ),
+    )
+    const jobs = await enrichEmailAlertPostedDates(
+      [
+        {
+          source: "linkedin-email",
+          sourceJobId: "4261234567",
+          url: "https://www.linkedin.com/jobs/view/4261234567",
+          sourceTimestampAt: null,
+        },
+        {
+          source: "indeed-email",
+          sourceJobId: "indeed-1",
+          url: "https://www.indeed.com/viewjob?jk=indeed-1",
+          sourceTimestampAt: null,
+        },
+      ],
+      { fetchImpl },
+    )
+
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://www.indeed.com/viewjob?jk=indeed-1",
+      expect.any(Object),
+    )
+    expect(jobs[0].sourceTimestampAt).toBeNull()
+    expect(jobs[1].sourceTimestampAt).toBe("2026-09-27T09:01:19.000Z")
   })
 
   it("extracts OnlineJobs.ph listings", () => {
