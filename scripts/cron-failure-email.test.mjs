@@ -30,7 +30,7 @@ describe("cron failure email", () => {
     await sendCronFailureEmail({
       environment: {
         JOB_ALERT_EMAIL_USER: "sender@gmail.com",
-        JOB_ALERT_EMAIL_APP_PASSWORD: "app-password",
+        JOB_ALERT_EMAIL_APP_PASSWORD: "app- pass word",
         JOB_SYNC_FAILURE_EMAIL_TO: "noxpwr@gmail.com",
       },
       error: new Error("sync crashed"),

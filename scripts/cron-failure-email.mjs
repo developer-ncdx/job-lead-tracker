@@ -64,7 +64,7 @@ export async function sendCronFailureEmail({
   transportFactory = nodemailer.createTransport,
 } = {}) {
   const user = environment.JOB_ALERT_EMAIL_USER?.trim()
-  const password = environment.JOB_ALERT_EMAIL_APP_PASSWORD?.trim()
+  const password = environment.JOB_ALERT_EMAIL_APP_PASSWORD?.replace(/\s+/g, "")
   const recipient =
     environment.JOB_SYNC_FAILURE_EMAIL_TO?.trim() || user
 
