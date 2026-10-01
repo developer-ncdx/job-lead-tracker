@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { cronHealth, nextSyncTime, readSyncSources } from "@/lib/sync-health"
+import { cronHealth, nextSyncTime, readSyncSources, syncSourceLabel } from "@/lib/sync-health"
 import { makeSyncRun } from "@/test/sync-fixtures"
 
 const now = Date.parse("2026-10-01T02:00:00Z")
@@ -57,5 +57,24 @@ describe("cron health", () => {
         { name: "x", status: "bogus", fetched: 0, matching: 0, error: null },
       ]),
     ).toEqual([])
+  })
+  it("distinguishes combined Gmail alerts from an explicit Google Alert backfill", () => {
+    expect(syncSourceLabel("email-alerts:gmail"))
+      .toBe("Gmail alerts (includes Google Alerts)")
+    expect(syncSourceLabel("google-alerts:backfill"))
+      .toBe("Google Alerts · manual backfill")
+    expect(syncSourceLabel("greenhouse:stripe")).toBe("greenhouse:stripe")
+  })
+  it("reads valid write counts without turning unknown historical counts into zeros", () => {
+    const source = { name: "greenhouse:stripe", status: "ok", fetched: 100, matching: 7, error: null }
+    const results = readSyncSources([
+      { ...source, new_jobs: 2, existing_jobs: 5 },
+      { ...source, new_jobs: 0, existing_jobs: 0 },
+      source,
+      { ...source, new_jobs: -1, existing_jobs: "5" },
+      { ...source, new_jobs: 1.5, existing_jobs: Number.MAX_SAFE_INTEGER + 1 },
+    ])
+    expect(results.map(({ new_jobs, existing_jobs }) => [new_jobs, existing_jobs]))
+      .toEqual([[2, 5], [0, 0], [null, null], [null, null], [null, null]])
   })
 })

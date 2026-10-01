@@ -29,6 +29,8 @@ function mockSyncClient({
   missingTable = false,
   failFinish = false,
   failBatch = 0,
+  failRead = false,
+  firstWriteError = null,
   existing = [],
 } = {}) {
   const runs = []
@@ -67,7 +69,10 @@ function mockSyncClient({
         in: () => query,
         is: () => query,
         then: (resolve) =>
-          Promise.resolve({ data: existing, error: null }).then(resolve),
+          Promise.resolve({
+            data: existing,
+            error: failRead ? { message: "Database read unavailable" } : null,
+          }).then(resolve),
       }
       return {
         select: () => query,
@@ -75,7 +80,9 @@ function mockSyncClient({
           writes.push(rows)
           return {
             error:
-              writes.length === failBatch
+              writes.length === 1 && firstWriteError
+                ? { message: firstWriteError }
+                : writes.length === failBatch
                 ? { message: "Database unavailable" }
                 : null,
           }
@@ -116,6 +123,7 @@ describe("sync run recording", () => {
       historyWarning: null,
       trigger: "scheduled_cron",
     })
+    expect(result.sourceSummaries[0]).toMatchObject({ new_jobs: 1, existing_jobs: 0 })
   })
   it("defaults local CLI syncs to a local trigger and respects owner scope", async () => {
     const mock = mockSyncClient()
@@ -207,6 +215,9 @@ describe("sync run recording", () => {
       written: 100,
       error_message: "Could not upsert job leads: Database unavailable",
     })
+    expect(mock.updates[0].sources[0]).toMatchObject({
+      matching: 101, new_jobs: 100, existing_jobs: 0,
+    })
   })
   it("records unexpected source exceptions and redacts credentials from stored errors", async () => {
     const mock = mockSyncClient()
@@ -236,6 +247,8 @@ describe("sync run recording", () => {
     })
     expect(result.dryRun).toBe(true)
     expect(clientFactory).not.toHaveBeenCalled()
+    expect(result.sourceSummaries[0]).toMatchObject({ new_jobs: null, existing_jobs: null })
+    expect(result.jobs[0]).not.toHaveProperty("sourceResultIndex")
   })
   it("limits stored error messages and masks configured secrets", () => {
     expect(
@@ -245,5 +258,90 @@ describe("sync run recording", () => {
       }),
     ).toBe("[redacted] [redacted]")
     expect(sanitizeHistoryError("x".repeat(1500))).toHaveLength(1000)
+  })
+
+  it("records new and existing writes per adapter, without double-counting shared jobs", async () => {
+    const oldJob = { ...job, sourceJobId: "old", url: "https://example.com/jobs/old" }
+    const newJob = { ...job, sourceJobId: "new", title: "Software Engineer 2" }
+    const mock = mockSyncClient({ existing: [{
+      source: "greenhouse", source_job_id: "old", title: oldJob.title,
+    }] })
+    const result = await runJobSync(syncOptions(mock, {
+      sourceFetcher: async () => [
+        source([oldJob, oldJob]),
+        { ...source([oldJob, newJob]), name: "greenhouse:second-board" },
+      ],
+    }))
+    expect(result.sourceSummaries[0]).toMatchObject({
+      matching: 2, new_jobs: 0, existing_jobs: 1,
+    })
+    expect(result.sourceSummaries[1]).toMatchObject({
+      matching: 2, new_jobs: 1, existing_jobs: 0,
+    })
+    expect(mock.updates[0]).toMatchObject({ written: 2, existing_jobs: 1 })
+    expect(mock.updates[0].sources.slice(0, 2)).toEqual(result.sourceSummaries.slice(0, 2))
+    expect(mock.writes[0].every(row => !Object.hasOwn(row, "sourceResultIndex"))).toBe(true)
+  })
+
+  it("credits only the adapter selected by source-priority deduplication", async () => {
+    const mock = mockSyncClient()
+    const result = await runJobSync(syncOptions(mock, {
+      sourceFetcher: async () => [
+        { ...source([{ ...job, source: "remotive" }]), name: "remotive:global" },
+        source(),
+      ],
+    }))
+    expect(result.sourceSummaries[0]).toMatchObject({
+      matching: 1, new_jobs: 0, existing_jobs: 0,
+    })
+    expect(result.sourceSummaries[1]).toMatchObject({
+      matching: 1, new_jobs: 1, existing_jobs: 0,
+    })
+    expect(result.written).toBe(1)
+  })
+
+  it("does not report fetched or rejected jobs as new or existing writes", async () => {
+    const mock = mockSyncClient()
+    const result = await runJobSync(syncOptions(mock, {
+      sourceFetcher: async () => [source([
+        { ...job, isRemote: false },
+        { ...job, title: "Software Engineer - Hybrid" },
+        { ...job, title: "Accountant" },
+      ])],
+    }))
+    expect(result.sourceSummaries[0]).toMatchObject({
+      fetched: 3, matching: 0, new_jobs: 0, existing_jobs: 0,
+    })
+    expect(mock.writes).toHaveLength(0)
+  })
+
+  it("keeps per-source counts unknown when the database check fails before writing", async () => {
+    const mock = mockSyncClient({ failRead: true })
+    await expect(runJobSync(syncOptions(mock))).rejects.toThrow("Database read unavailable")
+    expect(mock.updates[0].sources[0]).toMatchObject({ new_jobs: null, existing_jobs: null })
+    expect(mock.writes).toHaveLength(0)
+  })
+
+  it("counts a legacy timestamp-column retry only after its successful write", async () => {
+    const mock = mockSyncClient({ firstWriteError: "source_timestamp_label is not in the schema cache" })
+    const result = await runJobSync(syncOptions(mock))
+    expect(mock.writes).toHaveLength(2)
+    expect(result.sourceSummaries[0]).toMatchObject({ new_jobs: 1, existing_jobs: 0 })
+    expect(mock.updates[0]).toMatchObject({ written: 1, existing_jobs: 0 })
+  })
+
+  it("records zero writes for failed and skipped sources, and excludes date-only enrichment", async () => {
+    const mock = mockSyncClient()
+    const result = await runJobSync(syncOptions(mock, {
+      sourceFetcher: async () => [
+        source(),
+        { ...source([]), name: "email-alerts:gmail", status: "failed", error: "IMAP unavailable" },
+        { ...source([]), name: "jooble:global", status: "skipped", error: "No API key" },
+      ],
+      timestampBackfill: async () => ({ ...backfill, attempted: 1, updated: 1 }),
+    }))
+    expect(result.sourceSummaries[1]).toMatchObject({ new_jobs: 0, existing_jobs: 0 })
+    expect(result.sourceSummaries[2]).toMatchObject({ new_jobs: 0, existing_jobs: 0 })
+    expect(result.sourceSummaries[3]).toMatchObject({ new_jobs: null, existing_jobs: null })
   })
 })

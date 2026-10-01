@@ -158,7 +158,7 @@ describe("email job alerts", () => {
         type: "LINK",
         title: "Software Engineer - Remote",
         url: googleRedirect("https://www.linkedin.com/jobs/view/4473530223"),
-      }]),
+      }]) + `<a href="${googleRedirect("https://www.indeed.com/viewjob?jk=remote123")}">AI Developer - Remote</a>`,
     }
 
     expect(parseJobAlertEmail({
@@ -168,6 +168,17 @@ describe("email job alerts", () => {
     expect(parseJobAlertEmail({
       ...input,
       from: [{ address: "googlealerts-noreply@lookalike.com" }],
+      authenticationResults: GOOGLE_AUTH,
+    })).toEqual([])
+    expect(parseJobAlertEmail({
+      ...input,
+      from: [{ address: "googlealerts-noreply@google.com" }],
+      authenticationResults: "mx.google.com; dmarc=fail header.from=google.com",
+    })).toEqual([])
+    expect(parseJobAlertEmail({
+      ...input,
+      from: [{ address: "googlealerts-noreply@google.com" }],
+      subject: "Not a Google Alert",
       authenticationResults: GOOGLE_AUTH,
     })).toEqual([])
   })
@@ -205,6 +216,97 @@ describe("email job alerts", () => {
 
     expect(jobs).toHaveLength(1)
     expect(jobs[0].isRemote).toBe(false)
+  })
+
+  it("reads all 17 visible results when inbox metadata includes only four", () => {
+    const results = Array.from({ length: 17 }, (_, index) => ({
+      type: "LINK",
+      title: `Software Engineer ${index + 1} - Fully Remote`,
+      description: `Work from home at Company ${index + 1}.`,
+      url: googleRedirect(
+        `https://www.linkedin.com/jobs/view/${4473530200 + index}`,
+      ),
+    }))
+    const jobs = parseJobAlertEmail({
+      from: [{ address: "googlealerts-noreply@google.com" }],
+      subject: "Google Alert - remote software engineer -hybrid",
+      authenticationResults: GOOGLE_AUTH,
+      html: googleAlertHtml(results.slice(0, 4)) + results.map((result) =>
+        `<a href="${result.url.replace(/&/g, "&amp;")}">${result.title}</a>`,
+      ).join("\n"),
+    })
+
+    expect(jobs).toHaveLength(17)
+    expect(new Set(jobs.map((job) => job.sourceJobId)).size).toBe(17)
+    expect(jobs.every((job) => matchesTargetRole(job) && isRemoteOnlyJob(job)))
+      .toBe(true)
+    expect(jobs[0].description).toBe(results[0].description)
+    expect(jobs[4].description).toBe("")
+  })
+
+  it("keeps structured hybrid evidence while merging additional visible jobs", () => {
+    const hybridUrl = googleRedirect("https://www.linkedin.com/jobs/view/4473530223")
+    const jobs = parseJobAlertEmail({
+      from: [{ address: "googlealerts-noreply@google.com" }],
+      subject: "Google Alert - remote jobs -hybrid -onsite",
+      authenticationResults: GOOGLE_AUTH,
+      html: googleAlertHtml([{
+        type: "LINK",
+        title: "Software Engineer - Remote",
+        description: "Hybrid role: onsite three days, work from home two days.",
+        url: hybridUrl,
+      }]) + `
+        <a href="${hybridUrl}">Software Engineer - Fully Remote</a>
+        <a href="${googleRedirect("https://www.indeed.com/viewjob?jk=remote123")}">AI Developer - Fully Remote</a>
+        <a href="${googleRedirect("https://www.onlinejobs.ph/jobseekers/job/Software-Engineer-12345")}">Software Engineer</a>
+        <div>Other fully remote jobs you might like</div>
+        <a href="https://www.google.com/alerts/edit">Edit alert</a>
+        <a href="https://example.com/jobs/1">Software Engineer - Remote</a>
+        <a href="https://www.linkedin.com/jobs/view/4473530229">Apply now</a>`,
+    })
+
+    expect(jobs).toHaveLength(3)
+    expect(jobs[0].description).toContain("Hybrid role")
+    expect(jobs[2].isRemote).toBe(false)
+    expect(jobs.filter(isRemoteOnlyJob).map((job) => job.sourceJobId))
+      .toEqual(["remote123"])
+  })
+
+  it("merges multiple metadata blocks and visible links despite malformed metadata", () => {
+    const jobs = parseJobAlertEmail({
+      from: [{ address: "googlealerts-noreply@google.com" }],
+      subject: "Google Alert - remote jobs",
+      authenticationResults: GOOGLE_AUTH,
+      html: googleAlertHtml([{
+        type: "LINK",
+        title: "Software Engineer - Remote",
+        url: googleRedirect("https://www.linkedin.com/jobs/view/4473530223"),
+      }]) + `<script data-scope="inboxmarkup" type="application/json">{broken}</script>` +
+        googleAlertHtml([{
+          type: "LINK",
+          title: "AI Engineer - Fully Remote",
+          url: googleRedirect("https://www.upwork.com/jobs/~022102650240074324119"),
+        }]) + `<a href="${googleRedirect("https://www.indeed.com/viewjob?jk=remote123")}">AI Developer - Remote</a>`,
+    })
+
+    expect(jobs.map((job) => job.source))
+      .toEqual(["linkedin-email", "upwork-email", "indeed-email"])
+  })
+
+  it("does not treat HTML inside metadata descriptions as visible result links", () => {
+    const jobs = parseJobAlertEmail({
+      from: [{ address: "googlealerts-noreply@google.com" }],
+      subject: "Google Alert - remote jobs",
+      authenticationResults: GOOGLE_AUTH,
+      html: googleAlertHtml([{
+        type: "LINK",
+        title: "Software Engineer - Remote",
+        description: "<a href='https://www.linkedin.com/jobs/view/4473530224'>AI Engineer - Remote</a>",
+        url: googleRedirect("https://www.linkedin.com/jobs/view/4473530223"),
+      }]),
+    })
+
+    expect(jobs.map((job) => job.sourceJobId)).toEqual(["4473530223"])
   })
 
   it("reads authenticated Google Alerts from Spam without changing mailbox state", async () => {

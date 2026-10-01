@@ -74,6 +74,8 @@ export function summarizeLinkedInTimestampBackfill(backfill) {
           : "ok",
     fetched: backfill.attempted,
     matching: backfill.updated,
+    new_jobs: null,
+    existing_jobs: null,
     error: errors.length > 0 ? errors.join("; ") : null,
   }
 }
@@ -215,17 +217,30 @@ export async function runJobSync({
     const fetchedJobs = sourceResults
       .filter((result) => result.status === "ok")
       .flatMap((result) => result.jobs)
-    const matchedJobs = fetchedJobs.filter(matchesSyncCriteria)
-    const jobs = deduplicateJobs(matchedJobs)
+    const matchingBySource = sourceResults.map((result) =>
+      result.status === "ok" ? result.jobs.filter(matchesSyncCriteria) : [],
+    )
+    const matchedJobs = matchingBySource.flat()
+    // Carry the adapter's identity through deduplication, then remove this
+    // internal marker before returning jobs or building database rows.
+    const selectedJobs = deduplicateJobs(matchingBySource.flatMap(
+      (sourceJobs, sourceResultIndex) => sourceJobs.map((job) => ({
+        ...job,
+        sourceResultIndex,
+      })),
+    ))
+    const summaryIndexByIdentity = new Map(selectedJobs.map((job) => [
+      jobIdentity(job), job.sourceResultIndex,
+    ]))
+    const jobs = selectedJobs.map(({ sourceResultIndex: _sourceResultIndex, ...job }) => job)
 
-    const sourceSummaries = sourceResults.map((result) => ({
+    const sourceSummaries = sourceResults.map((result, index) => ({
       name: result.name,
       status: result.status,
       fetched: result.jobs.length,
-      matching:
-        result.status === "ok"
-          ? result.jobs.filter(matchesSyncCriteria).length
-          : 0,
+      matching: matchingBySource[index].length,
+      new_jobs: null,
+      existing_jobs: null,
       error: result.error,
     }))
     Object.assign(history, {
@@ -257,11 +272,19 @@ export async function runJobSync({
       existingByIdentity,
     })
 
+    for (const summary of sourceSummaries) {
+      summary.new_jobs = 0
+      summary.existing_jobs = 0
+    }
     await upsertLeads(client, rows, (batch) => {
-      history.written += batch.length
-      history.existing_jobs += batch.filter((row) =>
-        existingByIdentity.has(`${row.source}:${row.source_job_id}`),
-      ).length
+      for (const row of batch) {
+        const identity = `${row.source}:${row.source_job_id}`
+        const wasExisting = existingByIdentity.has(identity)
+        const summary = sourceSummaries[summaryIndexByIdentity.get(identity)]
+        history.written += 1
+        history.existing_jobs += wasExisting ? 1 : 0
+        summary[wasExisting ? "existing_jobs" : "new_jobs"] += 1
+      }
     })
 
     const linkedinTimestampBackfill = await timestampBackfill(client, {
@@ -331,7 +354,8 @@ export function printSyncSummary(summary) {
   for (const source of summary.sourceSummaries) {
     if (source.status === "ok") {
       console.log(
-        `${source.name}: OK fetched=${source.fetched} matching=${source.matching}`,
+        `${source.name}: OK fetched=${source.fetched} matching=${source.matching} ` +
+          `new=${source.new_jobs ?? "not-recorded"} existing=${source.existing_jobs ?? "not-recorded"}`,
       )
     } else {
       console.log(

@@ -74,7 +74,17 @@ export type SourceHealth = {
   status: "ok" | "skipped" | "warning" | "failed"
   fetched: number
   matching: number
+  new_jobs?: number | null
+  existing_jobs?: number | null
   error: string | null
+}
+
+export function syncSourceLabel(name: string) {
+  if (name === "email-alerts:gmail")
+    return "Gmail alerts (includes Google Alerts)"
+  if (name === "google-alerts:backfill")
+    return "Google Alerts · manual backfill"
+  return name
 }
 
 export function readSyncSources(value: Json): SourceHealth[] {
@@ -89,5 +99,15 @@ export function readSyncSources(value: Json): SourceHealth[] {
       typeof item.fetched === "number" &&
       typeof item.matching === "number" &&
       (item.error === null || typeof item.error === "string"),
-  )
+  ).map((source) => ({
+    ...source,
+    new_jobs: recordedCount(source.new_jobs),
+    existing_jobs: recordedCount(source.existing_jobs),
+  }))
+}
+
+function recordedCount(value: unknown) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null
 }

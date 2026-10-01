@@ -119,15 +119,17 @@ describe("Sync & cron navigation", () => {
         onRefresh={vi.fn()}
       />,
     )
-    expect(screen.getByText("Failed")).toBeInTheDocument()
+    const healthCard = screen.getByText("Scheduled cron health").parentElement!
+    expect(within(healthCard).getByText("Failed")).toBeInTheDocument()
     expect(screen.getByText("Oct 1, 2026, 9:47 AM PHT")).toBeInTheDocument()
     expect(
       screen.getByText("Local sync · completed successfully"),
     ).toBeInTheDocument()
-    expect(screen.getByText("IMAP unavailable")).toBeInTheDocument()
-    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(
-      3,
-    )
+    expect(screen.getAllByText("IMAP unavailable")).toHaveLength(2)
+    expect(within(screen.getByRole("table", { name: "Run summaries" }))
+      .getAllByRole("row")).toHaveLength(3)
+    expect(within(screen.getByRole("table", { name: "Source sync history" }))
+      .getAllByRole("row")).toHaveLength(2)
   })
   it("marks unavailable history as unverified, rather than showing a stale healthy badge", () => {
     render(
@@ -159,5 +161,13 @@ describe("Sync & cron navigation", () => {
     expect(refresh).toHaveBeenCalledOnce()
     expect(screen.getByText(/does not start a job sync/i)).toBeInTheDocument()
     expect(screen.getByText("No tracked success")).toBeInTheDocument()
+  })
+  it("shows historical run totals as separate new and existing lead counts", () => {
+    const run = makeSyncRun({ written: 20, existing_jobs: 15 })
+    render(<SyncPanel runs={[run]} latestCron={run} lastSuccess={run} onRefresh={vi.fn()} />)
+    const table = screen.getByRole("table", { name: "Run summaries" })
+    const row = within(table).getAllByRole("row")[1]
+    expect(within(row).getAllByRole("cell").slice(-3).map(cell => cell.textContent))
+      .toEqual(["20", "5", "15"])
   })
 })

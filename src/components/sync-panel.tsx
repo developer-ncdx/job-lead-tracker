@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { Activity, AlertTriangle, Clock3, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { SourceSyncHistory } from "@/components/source-sync-history"
 import { useSyncHistory } from "@/hooks/use-sync-history"
 import type { Database, JobSyncRun } from "@/lib/database.types"
 import { formatPhilippineDateTime } from "@/lib/philippine-time"
@@ -10,6 +11,7 @@ import {
   cronHealth,
   nextSyncTime,
   readSyncSources,
+  syncSourceLabel,
   syncTriggerLabel,
 } from "@/lib/sync-health"
 
@@ -184,7 +186,7 @@ export function SyncPanel({
               <li key={`${source.name}:${index}`} className="px-5 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className="font-medium text-slate-700">
-                    {source.name}
+                    {syncSourceLabel(source.name)}
                   </span>
                   <span
                     className={
@@ -215,19 +217,22 @@ export function SyncPanel({
           </p>
         )}
       </div>
+      <SourceSyncHistory runs={runs} isLoading={isLoading} />
       <div className="overflow-hidden rounded-2xl border border-sky-200/70 bg-white/85 shadow-sm">
         <h3 className="border-b border-sky-100 px-5 py-4 text-sm font-semibold">
-          Recent sync runs
+          Run summaries
         </h3>
         {runs.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table aria-label="Run summaries" className="w-full text-left text-xs">
               <thead className="text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3">Started (PHT)</th>
                   <th className="px-3 py-3">Trigger</th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-5 py-3 text-right">Rows synced</th>
+                  <th className="px-3 py-3 text-right">New leads added</th>
+                  <th className="px-5 py-3 text-right">Existing leads refreshed</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -241,6 +246,10 @@ export function SyncPanel({
                     </td>
                     <td className="px-3 py-3">{run.status}</td>
                     <td className="px-5 py-3 text-right">{run.written}</td>
+                    <td className="px-3 py-3 text-right">
+                      {Math.max(0, run.written - run.existing_jobs)}
+                    </td>
+                    <td className="px-5 py-3 text-right">{run.existing_jobs}</td>
                   </tr>
                 ))}
               </tbody>
@@ -254,6 +263,11 @@ export function SyncPanel({
           </p>
         )}
       </div>
+      <p className="text-xs text-muted-foreground">
+        Rows synced includes new jobs and refreshed existing jobs, not only new additions.
+        Gmail source counts include Google Alerts and supported job-board emails;
+        historical runs do not have separate Google Alert counts.
+      </p>
       <p className="text-xs text-muted-foreground">
         {checkedAt
           ? `Last status check: ${formatPhilippineDateTime(checkedAt)}. `

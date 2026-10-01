@@ -231,6 +231,8 @@ function fallbackIdentity(messageId, url) {
 }
 
 function googleAlertResults(html) {
+  const results = []
+
   for (const script of String(html).matchAll(
     /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
   )) {
@@ -253,29 +255,33 @@ function googleAlertResults(html) {
             Array.isArray(card.widgets) ? card.widgets : [],
           )
         : []
-      const results = widgets
+      const structuredResults = widgets
         .filter((widget) => widget.type === "LINK")
         .map((widget) => ({
           url: widget.url,
           title: widget.title,
           description: widget.description,
         }))
-
-      if (results.length > 0) {
-        return results
-      }
+      results.push(...structuredResults)
     } catch {
       // Fall back to visible result links when inbox markup is malformed.
     }
   }
 
-  return extractAnchors(html).map((link) => ({
+  // Inbox metadata can contain only a subset of the email's results. Keep
+  // structured results first so their descriptions survive deduplication.
+  const visibleHtml = String(html).replace(
+    /<script\b[^>]*>[\s\S]*?<\/script>/gi,
+    "",
+  )
+  const visibleResults = extractAnchors(visibleHtml).map((link) => ({
     url: link.href,
     title: link.text,
     // Without a structured result boundary, neighboring snippets must not
     // make an unrelated onsite posting appear remote.
     description: "",
   }))
+  return [...results, ...visibleResults]
 }
 
 function parseGoogleAlertEmail(html) {
