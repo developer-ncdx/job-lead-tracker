@@ -44,6 +44,7 @@ Open the Supabase SQL Editor and run these files in order:
 5. `supabase/migrations/005_job_lead_priorities.sql`
 6. `supabase/migrations/20260929150440_add_source_timestamp_label.sql`
 7. `supabase/migrations/20261001120511_job_sync_health.sql`
+8. `supabase/migrations/20261001125847_streamline_sync_history_policies.sql`
 
 The migrations create the `job_leads` table, source metadata, timestamp
 semantics, duplicate constraint, trigger, Realtime publication entry, grants,
@@ -53,6 +54,7 @@ allows server-side imports to use a null owner in this public mode. Migration
 `005` adds priority storage and removes browser delete access.
 The sync-health migration creates server-written `job_sync_runs` with read-only
 browser grants and owner-scoped RLS. It does not change job cards or lead metadata.
+The follow-up migration consolidates its read policies without changing access.
 
 > **Warning:** public mode exposes every `job_leads` row and its priority
 > setting to anyone who has the project URL and browser key. Do not deploy the
