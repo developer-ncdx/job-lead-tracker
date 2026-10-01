@@ -12,6 +12,9 @@ and lets the user sort them by date or save them to a priority list.
 - Newest-first and oldest-first date sorting
 - Supabase-backed priority controls and a dedicated Priority tab
 - Initial fetch, manual refresh, and Supabase Realtime refreshes
+- Main navbar with Job leads and Sync & cron pages; All jobs and Priority stay
+  within Job leads. The Sync & cron page shows scheduled health, last successful sync, latest
+  attempt, expected next run, per-source outcomes, and recent run history
 - Server-side Greenhouse, Ashby, Lever, We Work Remotely, Remotive, Remote OK,
   Jobicy, Himalayas, Arbeitnow, Arbeitnow UK, The Muse, JobTech Sweden,
   EURES, Ayla Government, Nomado24, SmartRecruiters, Workable, Personio, and
@@ -40,6 +43,7 @@ Open the Supabase SQL Editor and run these files in order:
 4. `supabase/migrations/004_public_imports_without_auth.sql`
 5. `supabase/migrations/005_job_lead_priorities.sql`
 6. `supabase/migrations/20260929150440_add_source_timestamp_label.sql`
+7. `supabase/migrations/20261001120511_job_sync_health.sql`
 
 The migrations create the `job_leads` table, source metadata, timestamp
 semantics, duplicate constraint, trigger, Realtime publication entry, grants,
@@ -47,6 +51,8 @@ and RLS policies. Migration `003` temporarily permits anonymous read, update,
 and delete access so the local app does not require a login. Migration `004`
 allows server-side imports to use a null owner in this public mode. Migration
 `005` adds priority storage and removes browser delete access.
+The sync-health migration creates server-written `job_sync_runs` with read-only
+browser grants and owner-scoped RLS. It does not change job cards or lead metadata.
 
 > **Warning:** public mode exposes every `job_leads` row and its priority
 > setting to anyone who has the project URL and browser key. Do not deploy the
@@ -217,6 +223,32 @@ listings, so it correctly produces zero leads. The importer will begin
 extracting that source when actual OnlineJobs.ph job-alert messages arrive.
 
 ## Run the sync with Vercel Cron
+
+### Sync & cron page
+
+The main navbar links to `#job-leads` and `#sync-cron`, including direct links
+and browser back/forward navigation. The All jobs and Priority filters stay on
+the Job leads page, and their selection is preserved when switching pages.
+The separate status page reads the latest 20 attempts, the most recent scheduled
+cron run, and the most recent successful or warning-completed run. Local and
+manual endpoint syncs never prove scheduled-cron health. It polls every minute
+while the tab is open and visible. **Refresh status** reads history only; it does
+not start a sync or expose `CRON_SECRET` to the browser.
+
+Apply migration `20261001120511_job_sync_health.sql` and deploy the updated sync
+code to enable actual run tracking. Earlier run outcomes cannot be recovered
+from job discovery timestamps. A missing history table shows setup instructions
+without preventing job imports. History-write failures are logged and returned
+as `historyWarning`; actual import failures still trigger the existing failure
+email. Interrupted runs stay incomplete rather than becoming a false success.
+
+For the current hourly schedule, a recent successful scheduled run is healthy;
+warnings and failed sources remain visible. A run with no completion for over
+10 minutes is incomplete, and no scheduled run for over 75 minutes is overdue.
+The next hourly time is an expectation from the configured schedule, not proof
+that the scheduler will execute. All displayed times use Asia/Manila (PHT).
+
+### Deployment configuration
 
 The production deployment includes a protected Vercel Function at
 `/api/cron/sync-job-leads`. `vercel.json` invokes it at the start of every

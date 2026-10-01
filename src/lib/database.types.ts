@@ -7,10 +7,32 @@ export type Json =
   | Json[]
 
 export type JobLeadTimestampKind = "published" | "created" | "updated"
+export type SyncTrigger = "scheduled_cron" | "manual_cron" | "local_sync"
+export type JobSyncRun = {
+  id: string
+  user_id: string | null
+  trigger: SyncTrigger
+  status: "running" | "success" | "warning" | "failed"
+  started_at: string
+  finished_at: string | null
+  fetched: number
+  matching: number
+  unique_jobs: number
+  written: number
+  existing_jobs: number
+  sources: Json
+  error_message: string | null
+}
 
 export type Database = {
   public: {
     Tables: {
+      job_sync_runs: {
+        Row: JobSyncRun
+        Insert: Partial<JobSyncRun> & Pick<JobSyncRun, "trigger">
+        Update: Partial<JobSyncRun>
+        Relationships: []
+      }
       job_leads: {
         Row: {
           id: string

@@ -21,7 +21,11 @@ export function createCronHandler({
     }
 
     try {
-      const summary = await sync({ environment })
+      const trigger =
+        request.headers.get("user-agent") === "vercel-cron/1.0"
+          ? "scheduled_cron"
+          : "manual_cron"
+      const summary = await sync({ environment, trigger })
       if (summary.dryRun) {
         throw new Error(
           `Scheduled job sync could not write to Supabase; missing ${
@@ -63,9 +67,11 @@ export function createCronHandler({
           matching: summary.matching,
           unique: summary.unique,
           written: summary.written,
+          syncRunId: summary.syncRunId ?? null,
+          historyWarning: summary.historyWarning ?? null,
+          trigger,
           existing: summary.existing ?? 0,
-          linkedinTimestampBackfill:
-            summary.linkedinTimestampBackfill ?? null,
+          linkedinTimestampBackfill: summary.linkedinTimestampBackfill ?? null,
           sources: summary.sourceSummaries,
         },
         { status: failedSources.length === 0 ? 200 : 502 },

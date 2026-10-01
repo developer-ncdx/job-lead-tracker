@@ -9,6 +9,46 @@ function cronRequest(secret) {
 }
 
 describe("Vercel job sync cron", () => {
+  it("identifies authorized scheduled runs and preserves authorization checks", async () => {
+    const sync = vi
+      .fn()
+      .mockResolvedValue({
+        dryRun: false,
+        sourceSummaries: [],
+        syncRunId: "run-1",
+      })
+    const environment = { CRON_SECRET: "secret" }
+    const handler = createCronHandler({
+      sync,
+      environment,
+      notifyFailure: vi.fn(),
+    })
+    const response = await handler(
+      new Request("https://example.com/api/cron/sync-job-leads", {
+        headers: {
+          authorization: "Bearer secret",
+          "user-agent": "vercel-cron/1.0",
+        },
+      }),
+    )
+    expect(sync).toHaveBeenCalledWith({
+      environment,
+      trigger: "scheduled_cron",
+    })
+    expect(await response.json()).toMatchObject({
+      syncRunId: "run-1",
+      trigger: "scheduled_cron",
+    })
+    sync.mockClear()
+    const unauthorized = await handler(
+      new Request("https://example.com/api/cron/sync-job-leads", {
+        headers: { "user-agent": "vercel-cron/1.0" },
+      }),
+    )
+    expect(unauthorized.status).toBe(401)
+    expect(sync).not.toHaveBeenCalled()
+  })
+
   it("rejects requests when the cron secret is missing", async () => {
     const sync = vi.fn()
     const handler = createCronHandler({ sync, environment: {} })
@@ -63,7 +103,7 @@ describe("Vercel job sync cron", () => {
       matching: 12,
       written: 10,
     })
-    expect(sync).toHaveBeenCalledWith({ environment })
+    expect(sync).toHaveBeenCalledWith({ environment, trigger: "manual_cron" })
     expect(notifyFailure).not.toHaveBeenCalled()
   })
 

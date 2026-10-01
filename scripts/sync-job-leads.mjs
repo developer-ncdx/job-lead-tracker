@@ -9,6 +9,11 @@ import { fetchConfiguredSourceResults } from "./job-sources/index.mjs"
 import { backfillLinkedInTimestamps } from "./job-sources/linkedin-timestamp-backfill.mjs"
 import { matchesTargetRole } from "./job-sources/role-filter.mjs"
 import {
+  startSyncRun,
+  finishSyncRun,
+  sanitizeHistoryError,
+} from "./job-sources/sync-history.mjs"
+import {
   buildSupabaseRows,
   chunk,
   deduplicateJobs,
@@ -61,11 +66,12 @@ export function summarizeLinkedInTimestampBackfill(backfill) {
   return {
     source: "linkedin-email",
     name: "linkedin-email:timestamp-backfill",
-    status: skippedLabelCount > 0 || databaseFailureCount > 0
-      ? "failed"
-      : providerFailureCount > 0
-        ? "warning"
-        : "ok",
+    status:
+      skippedLabelCount > 0 || databaseFailureCount > 0
+        ? "failed"
+        : providerFailureCount > 0
+          ? "warning"
+          : "ok",
     fetched: backfill.attempted,
     matching: backfill.updated,
     error: errors.length > 0 ? errors.join("; ") : null,
@@ -93,9 +99,7 @@ async function loadExistingLeads(client, userId, jobs) {
           jobBatch.map((job) => job.sourceJobId),
         )
 
-      query = userId
-        ? query.eq("user_id", userId)
-        : query.is("user_id", null)
+      query = userId ? query.eq("user_id", userId) : query.is("user_id", null)
 
       const { data, error } = await query
 
@@ -106,10 +110,7 @@ async function loadExistingLeads(client, userId, jobs) {
       }
 
       for (const lead of data ?? []) {
-        existingByIdentity.set(
-          `${lead.source}:${lead.source_job_id}`,
-          lead,
-        )
+        existingByIdentity.set(`${lead.source}:${lead.source_job_id}`, lead)
       }
     }
   }
@@ -117,7 +118,7 @@ async function loadExistingLeads(client, userId, jobs) {
   return existingByIdentity
 }
 
-async function upsertLeads(client, rows) {
+async function upsertLeads(client, rows, onWritten = () => {}) {
   for (const rowBatch of chunk(rows, 100)) {
     let { error } = await client.from("job_leads").upsert(rowBatch, {
       onConflict: "user_id,source,source_job_id",
@@ -127,16 +128,16 @@ async function upsertLeads(client, rows) {
       const legacyRows = rowBatch.map(
         ({ source_timestamp_label: _sourceTimestampLabel, ...row }) => row,
       )
-      const legacyResult = await client.from("job_leads").upsert(
-        legacyRows,
-        { onConflict: "user_id,source,source_job_id" },
-      )
+      const legacyResult = await client
+        .from("job_leads")
+        .upsert(legacyRows, { onConflict: "user_id,source,source_job_id" })
       error = legacyResult.error
     }
 
     if (error) {
       throw new Error(`Could not upsert job leads: ${error.message}`)
     }
+    onWritten(rowBatch)
   }
 }
 
@@ -160,93 +161,169 @@ export async function runJobSync({
   fetchImpl = fetch,
   forceDryRun = false,
   clientFactory = createClient,
+  trigger = "local_sync",
+  sourceFetcher = fetchConfiguredSourceResults,
+  timestampBackfill = backfillLinkedInTimestamps,
 } = {}) {
-  const sourceConfig = config ?? (await loadSourceConfig())
-  const sourceResults = await fetchConfiguredSourceResults(sourceConfig, {
-    environment,
-    fetchImpl,
-  })
-  const fetchedJobs = sourceResults
-    .filter((result) => result.status === "ok")
-    .flatMap((result) => result.jobs)
-  const matchedJobs = fetchedJobs.filter(matchesSyncCriteria)
-  const jobs = deduplicateJobs(matchedJobs)
   const supabaseEnvironment = resolveSupabaseEnvironment(environment)
   const missingSupabaseValues = [
     !supabaseEnvironment.url && "SUPABASE_URL",
     !supabaseEnvironment.serviceRoleKey && "SUPABASE_SERVICE_ROLE_KEY",
   ].filter(Boolean)
   const dryRun = forceDryRun || missingSupabaseValues.length > 0
+  const client = dryRun
+    ? null
+    : clientFactory(
+        supabaseEnvironment.url,
+        supabaseEnvironment.serviceRoleKey,
+        {
+          auth: { autoRefreshToken: false, persistSession: false },
+        },
+      )
+  let syncRunId = null
+  let historyWarning = null
+  const history = {
+    fetched: 0,
+    matching: 0,
+    unique_jobs: 0,
+    written: 0,
+    existing_jobs: 0,
+    sources: [],
+  }
+  function warnHistory(error) {
+    historyWarning =
+      "Sync history could not be saved; job ingestion was not disabled."
+    console.warn(historyWarning, sanitizeHistoryError(error, environment))
+  }
+  if (client) {
+    try {
+      syncRunId = await startSyncRun(
+        client,
+        supabaseEnvironment.ownerId,
+        trigger,
+      )
+    } catch (error) {
+      warnHistory(error)
+    }
+  }
+  try {
+    const sourceConfig = config ?? (await loadSourceConfig())
+    const sourceResults = await sourceFetcher(sourceConfig, {
+      environment,
+      fetchImpl,
+    })
+    const fetchedJobs = sourceResults
+      .filter((result) => result.status === "ok")
+      .flatMap((result) => result.jobs)
+    const matchedJobs = fetchedJobs.filter(matchesSyncCriteria)
+    const jobs = deduplicateJobs(matchedJobs)
 
-  const sourceSummaries = sourceResults.map((result) => ({
-    name: result.name,
-    status: result.status,
-    fetched: result.jobs.length,
-    matching:
-      result.status === "ok"
-        ? result.jobs.filter(matchesSyncCriteria).length
-        : 0,
-    error: result.error,
-  }))
+    const sourceSummaries = sourceResults.map((result) => ({
+      name: result.name,
+      status: result.status,
+      fetched: result.jobs.length,
+      matching:
+        result.status === "ok"
+          ? result.jobs.filter(matchesSyncCriteria).length
+          : 0,
+      error: result.error,
+    }))
+    Object.assign(history, {
+      fetched: fetchedJobs.length,
+      matching: matchedJobs.length,
+      unique_jobs: jobs.length,
+      sources: sourceSummaries,
+    })
 
-  if (dryRun) {
+    if (dryRun) {
+      return {
+        dryRun: true,
+        sourceSummaries,
+        fetched: fetchedJobs.length,
+        matching: matchedJobs.length,
+        unique: jobs.length,
+        written: 0,
+        missingSupabaseValues,
+        jobs,
+      }
+    }
+
+    const existingByIdentity = await loadExistingLeads(
+      client,
+      supabaseEnvironment.ownerId,
+      jobs,
+    )
+    const rows = buildSupabaseRows(jobs, supabaseEnvironment.ownerId, {
+      existingByIdentity,
+    })
+
+    await upsertLeads(client, rows, (batch) => {
+      history.written += batch.length
+      history.existing_jobs += batch.filter((row) =>
+        existingByIdentity.has(`${row.source}:${row.source_job_id}`),
+      ).length
+    })
+
+    const linkedinTimestampBackfill = await timestampBackfill(client, {
+      fetchImpl,
+      limit: environment.JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT,
+    })
+    sourceSummaries.push(
+      summarizeLinkedInTimestampBackfill(linkedinTimestampBackfill),
+    )
+    const status = sourceSummaries.some((source) => source.status === "failed")
+      ? "failed"
+      : sourceSummaries.some((source) => source.status === "warning")
+        ? "warning"
+        : "success"
+    if (syncRunId) {
+      try {
+        await finishSyncRun(
+          client,
+          syncRunId,
+          { ...history, status },
+          environment,
+        )
+      } catch (error) {
+        warnHistory(error)
+      }
+    }
+
     return {
-      dryRun: true,
+      dryRun: false,
+      syncRunId,
+      historyWarning,
+      trigger,
       sourceSummaries,
       fetched: fetchedJobs.length,
       matching: matchedJobs.length,
       unique: jobs.length,
-      written: 0,
-      missingSupabaseValues,
-      jobs,
+      written: rows.length,
+      existing: jobs.filter((job) => existingByIdentity.has(jobIdentity(job)))
+        .length,
+      linkedinTimestampBackfill,
+      missingSupabaseValues: [],
+      jobs: [],
     }
-  }
-
-  const client = clientFactory(
-    supabaseEnvironment.url,
-    supabaseEnvironment.serviceRoleKey,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    },
-  )
-  const existingByIdentity = await loadExistingLeads(
-    client,
-    supabaseEnvironment.ownerId,
-    jobs,
-  )
-  const rows = buildSupabaseRows(jobs, supabaseEnvironment.ownerId, {
-    existingByIdentity,
-  })
-
-  await upsertLeads(client, rows)
-
-  const linkedinTimestampBackfill = await backfillLinkedInTimestamps(
-    client,
-    {
-      fetchImpl,
-      limit: environment.JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT,
-    },
-  )
-  sourceSummaries.push(
-    summarizeLinkedInTimestampBackfill(linkedinTimestampBackfill),
-  )
-
-  return {
-    dryRun: false,
-    sourceSummaries,
-    fetched: fetchedJobs.length,
-    matching: matchedJobs.length,
-    unique: jobs.length,
-    written: rows.length,
-    existing: jobs.filter((job) =>
-      existingByIdentity.has(jobIdentity(job)),
-    ).length,
-    linkedinTimestampBackfill,
-    missingSupabaseValues: [],
-    jobs: [],
+  } catch (error) {
+    if (syncRunId) {
+      try {
+        await finishSyncRun(
+          client,
+          syncRunId,
+          {
+            ...history,
+            status: "failed",
+            error_message:
+              error instanceof Error ? error.message : String(error),
+          },
+          environment,
+        )
+      } catch (historyError) {
+        warnHistory(historyError)
+      }
+    }
+    throw error
   }
 }
 
@@ -279,8 +356,7 @@ export function printSyncSummary(summary) {
 }
 
 const isMain =
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
 
 if (isMain) {
   loadLocalEnvironment()
@@ -291,9 +367,7 @@ if (isMain) {
     })
     printSyncSummary(summary)
 
-    if (
-      summary.sourceSummaries.some((source) => source.status === "failed")
-    ) {
+    if (summary.sourceSummaries.some((source) => source.status === "failed")) {
       process.exitCode = 1
     }
   } catch (error) {
