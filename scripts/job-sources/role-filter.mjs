@@ -56,7 +56,7 @@ const TARGET_ROLE_PATTERNS = Object.freeze([
 ])
 
 const EXCLUDED_TITLE_PATTERN =
-  /\b(?:sales|pre[\s-]*sales|customer\s+success|support|help\s*desk|marketing|recruit(?:er|ing)|talent\s+acquisition|product\s+manager|project\s+manager|program\s+manager|business\s+analyst|data\s+analyst|product\s+analytics|business\s+systems?\s+(?:analyst|architect)|solutions?\s+(?:architect|engineer)|partner\s+development|(?:mechanical|industrial|design)\s+engineer|instructor|trainer|teacher|speaker|template)\b/i
+  /\b(?:sales|pre[\s-]*sales|customer\s+success|support|help\s*desk|marketing|recruit(?:er|ing)|talent\s+acquisition|product\s+manager|project\s+manager|program\s+manager|business\s+analyst|data\s+analyst|product\s+analytics|business\s+systems?\s+(?:analyst|architect)|solutions?\s+(?:architect|engineer)|partner\s+development|(?:mechanical|industrial|design)\s+engineer|instructional\s+designer|curriculum\s+development|instructor|trainer|teacher|speaker|template)\b/i
 
 export function normalizeRoleText(value) {
   return String(value ?? "")

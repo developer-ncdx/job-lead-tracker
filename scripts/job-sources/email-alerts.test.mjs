@@ -35,6 +35,12 @@ describe("email job alerts", () => {
       .toBe("indeed-email")
     expect(identifyEmailAlertProvider(["support@onlinejobs.ph"]))
       .toBe("onlinejobsph-email")
+    expect(identifyEmailAlertProvider(["donotreply@upwork.com"]))
+      .toBe("upwork-email")
+    expect(identifyEmailAlertProvider(["jobs@notify.upwork.com"]))
+      .toBe("upwork-email")
+    expect(identifyEmailAlertProvider(["jobs@fakeupwork.com"])).toBeNull()
+    expect(identifyEmailAlertProvider(["jobs@upwork.com.example.com"])).toBeNull()
     expect(identifyEmailAlertProvider(["googlealerts-noreply@google.com"]))
       .toBe("google-alerts")
     expect(identifyEmailAlertProvider(["person@example.com"])).toBeNull()
@@ -267,9 +273,90 @@ describe("email job alerts", () => {
 
     expect(jobs).toHaveLength(3)
     expect(jobs[0].description).toContain("Hybrid role")
-    expect(jobs[2].isRemote).toBe(false)
+    expect(jobs[2].isRemote).toBe(true)
     expect(jobs.filter(isRemoteOnlyJob).map((job) => job.sourceJobId))
-      .toEqual(["remote123"])
+      .toEqual(["remote123", "12345"])
+  })
+
+  it("keeps OnlineJobs.ph developer jobs without remote wording in either email format", () => {
+    const url = "https://www.onlinejobs.ph/jobseekers/job/Automation-Developer-1456789"
+    const direct = parseJobAlertEmail({
+      from: ["support@onlinejobs.ph"],
+      subject: "New jobs for you",
+      html: `<a href="${url}">Automation Developer</a><p>Build API integrations.</p>`,
+    })
+    const google = parseJobAlertEmail({
+      from: ["googlealerts-noreply@google.com"],
+      subject: "Google Alert - automation developer",
+      authenticationResults: GOOGLE_AUTH,
+      html: googleAlertHtml([{
+        type: "LINK",
+        title: "Automation Developer",
+        description: "Build API integrations.",
+        url: googleRedirect(url),
+      }]),
+    })
+
+    for (const jobs of [direct, google]) {
+      expect(jobs).toHaveLength(1)
+      expect(jobs[0]).toMatchObject({
+        source: "onlinejobsph-email",
+        isRemote: true,
+        location: "Remote",
+      })
+      expect(matchesTargetRole(jobs[0]) && isRemoteOnlyJob(jobs[0])).toBe(true)
+    }
+  })
+
+  it("still rejects explicit onsite or hybrid OnlineJobs.ph listings", () => {
+    const jobs = parseJobAlertEmail({
+      from: ["googlealerts-noreply@google.com"],
+      subject: "Google Alert - software engineer",
+      authenticationResults: GOOGLE_AUTH,
+      html: googleAlertHtml([
+        {
+          type: "LINK",
+          title: "Software Engineer",
+          description: "Onsite role in Manila.",
+          url: googleRedirect("https://www.onlinejobs.ph/jobseekers/job/Software-Engineer-12345"),
+        },
+        {
+          type: "LINK",
+          title: "Automation Developer",
+          description: "Hybrid: remote two days, office-based three days.",
+          url: googleRedirect("https://www.onlinejobs.ph/jobseekers/job/Automation-Developer-12346"),
+        },
+      ]),
+    })
+
+    expect(jobs).toHaveLength(2)
+    expect(jobs.filter(isRemoteOnlyJob)).toEqual([])
+  })
+
+  it("extracts direct Upwork job alerts while ignoring account and promotional links", () => {
+    const jobs = parseJobAlertEmail({
+      from: ["donotreply@upwork.com"],
+      subject: "New remote software developer jobs",
+      html: `<a href="https://www.upwork.com/jobs/~022102650240074324119?utm_source=email">Software Developer</a>
+        <p>Fully remote freelance project.</p>
+        <a href="https://www.upwork.com/freelance-jobs/apply/Software-Developer_~022102650240074324119/">Apply now</a>
+        <a href="https://www.upwork.com/nx/find-work/">Find work</a>
+        <a href="https://www.upwork.com/plus">Freelancer Plus</a>`,
+    })
+
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0]).toMatchObject({
+      source: "upwork-email",
+      sourceJobId: "~022102650240074324119",
+      title: "Software Developer",
+      isRemote: true,
+    })
+    expect(matchesTargetRole(jobs[0]) && isRemoteOnlyJob(jobs[0])).toBe(true)
+    expect(parseJobAlertEmail({
+      from: ["donotreply@upwork.com"],
+      subject: "Your profile is approved",
+      html: '<a href="https://www.upwork.com/nx/find-work/">Find work</a>',
+    })).toEqual([])
   })
 
   it("merges multiple metadata blocks and visible links despite malformed metadata", () => {

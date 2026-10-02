@@ -64,6 +64,8 @@ describe("software-development role filter", () => {
       "GSI Partner Development Lead",
       "Staff Design Engineer",
       "[TEMPLATE] Integration Engineer",
+      "Instructional Designer & Curriculum Development Lead — Financial Capability",
+      "Curriculum Development Lead",
     ]
 
     for (const title of rejectedTitles) {

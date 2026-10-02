@@ -25,6 +25,10 @@ const PROVIDERS = Object.freeze([
     senderPattern: /(?:^|[.@])onlinejobs\.ph$/i,
   },
   {
+    source: "upwork-email",
+    senderPattern: /(?:^|[.@])upwork\.com$/i,
+  },
+  {
     source: "google-alerts",
     senderPattern: /^googlealerts-noreply@google\.com$/i,
   },
@@ -192,6 +196,12 @@ function usableTitle(value) {
   return title
 }
 
+function inferEmailJobRemote(source, ...text) {
+  // OnlineJobs.ph is a work-from-home job board. Short email snippets do not
+  // always repeat that fact. The sync still rejects explicit onsite/hybrid text.
+  return source === "onlinejobsph-email" || inferRemote(...text)
+}
+
 function jobFromLink(link, body, subject) {
   const providerUrl = normalizeProviderUrl(link.href)
 
@@ -210,13 +220,15 @@ function jobFromLink(link, body, subject) {
     return null
   }
 
+  const isRemote = inferEmailJobRemote(providerUrl.source, title, context, subject)
+
   return {
     ...providerUrl,
     title,
     company: "",
-    location: inferRemote(title, context, subject) ? "Remote" : "",
+    location: isRemote ? "Remote" : "",
     description: context,
-    isRemote: inferRemote(title, context, subject),
+    isRemote,
     sourceTimestampAt: null,
     sourceTimestampKind: null,
     sourceTimestampLabel: null,
@@ -304,7 +316,7 @@ function parseGoogleAlertEmail(html) {
 
     seen.add(identity)
     const description = cleanText(result.description)
-    const isRemote = inferRemote(title, description)
+    const isRemote = inferEmailJobRemote(providerUrl.source, title, description)
 
     jobs.push({
       ...providerUrl,

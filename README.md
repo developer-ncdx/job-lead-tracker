@@ -187,10 +187,29 @@ so polling more often does not guarantee newer listings.
 
 ## Import job-alert emails
 
-The sync can also read LinkedIn, Indeed, and OnlineJobs.ph job-alert messages
+The sync can also read LinkedIn, Indeed, OnlineJobs.ph, and Upwork job-alert messages
 from Gmail over IMAP. It only reads recent messages, does not mark them as
 read, and sends extracted listings through the same target-role and
 remote-only filters as the public sources.
+
+It also reads authenticated Google Alerts from Gmail's Spam folder. OnlineJobs.ph
+listings default to remote when a short email snippet omits work-location wording;
+explicit onsite or hybrid wording still fails the remote-only filter. Account setup
+and promotional messages without supported job links do not produce leads. These
+imports cover listings included in the received emails, not every job on each site.
+
+For Google Alerts, use separate queries for these two sites. OnlineJobs.ph does not
+need a remote-phrase requirement, and Upwork listings use both `/jobs` and
+`/freelance-jobs/apply` paths. Include automation terms explicitly, for example:
+
+```text
+site:onlinejobs.ph/jobseekers/job (developer OR "software engineer" OR programmer OR automation OR n8n)
+(site:upwork.com/jobs OR site:upwork.com/freelance-jobs/apply) (developer OR "software engineer" OR programmer OR automation OR n8n)
+```
+
+These are suggested account settings; changing this file does not update Google
+Alerts. Results still depend on Google's indexing and delivery, and the importer
+applies the target-role and remote-only filters to the received listings.
 
 When date enrichment is enabled, the importer accepts only an absolute
 `JobPosting.datePosted` timestamp published by the provider. LinkedIn relative
