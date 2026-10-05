@@ -239,4 +239,17 @@ describe("DashboardView job tracking", () => {
     expect(screen.queryByRole("article", { name: "Hidden Target" })).not.toBeInTheDocument()
     expect(screen.getByRole("spinbutton", { name: "Current page" })).toHaveValue(1)
   })
+
+  it("finds Smile & Hire by its display name and stored source name", () => {
+    render(<Harness initialLeads={[
+      makeLead("smile", { title: "AI Implementation Specialist (Client Systems Architect)", source: "smileandhire" }),
+      makeLead("other", { title: "Automation Specialist", source: "onlinejobsph" }),
+    ]} />)
+    const search = screen.getByRole("searchbox", { name: "Search jobs" })
+    for (const value of ["Smile & Hire", "smileandhire"]) {
+      fireEvent.change(search, { target: { value } })
+      expect(screen.getByText("1 job found")).toBeInTheDocument()
+      expect(screen.getByRole("article", { name: "AI Implementation Specialist (Client Systems Architect)" })).toBeInTheDocument()
+    }
+  })
 })

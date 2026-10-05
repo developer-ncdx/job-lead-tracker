@@ -485,3 +485,35 @@ the live batch extracted 14 unique jobs across the five starter keywords without
 login, including 10 titles matching the tracker's role filter. One expired job
 page returned HTTP 410 and was skipped. This verifies a small manual run, not
 sustained access or unattended crawling across all keywords.
+
+### Smile & Hire extraction POC
+
+```sh
+node scripts/poc/smileandhire.mjs
+# Optional: --limit=0..3 (public detail pages; default 1)
+# Optional: --output=/absolute/path/results.json
+# Import only jobs matching the existing role and remote-only filters
+node scripts/poc/smileandhire.mjs --import
+# Reuse saved results without making new requests to the job board
+node scripts/poc/smileandhire.mjs --import --input=smileandhire-poc.local/results.json
+```
+
+This manual POC reads the public `/jobs` HTML and extracts the listing titles,
+companies, work style, employment type, compensation, hours, and overview.
+It can enrich up to three public job descriptions, waits five seconds between
+requests, and stops on HTTP errors, redirects, or missing expected content.
+It does not sign in, submit applications, or call private endpoints. The JSON
+is saved to `smileandhire-poc.local/results.json` (ignored by Git). It uses
+`jsdom` from the development dependencies and is not part of scheduled sync.
+
+On October 5, 2026 the public page exposed 12 listings without login. One
+matched the existing title filter: AI Implementation Specialist (Client Systems
+Architect), through its Systems Architect title. AWS Architect and the other
+listings did not match. The current filter is preserved. The default run only
+saves JSON; `--import` writes eligible new jobs to the configured Supabase
+project, skips existing jobs, and preserves all user tracking states. Jobs use
+the `smileandhire` source (searchable as `Smile & Hire`) and no original posting
+date is invented. If a database write response fails, the importer verifies
+the rows with a read instead of repeating the write.
+The site's linked Terms page and `/robots.txt` returned 404 during the check,
+so no affirmative crawling permission could be verified.

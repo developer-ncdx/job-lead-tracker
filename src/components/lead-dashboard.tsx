@@ -194,8 +194,10 @@ export function DashboardView({
           if (readFilter !== "all" && Boolean(lead.is_read) !== (readFilter === "read")) return false
           const sourceLabel = lead.source?.startsWith("onlinejobsph")
             ? "OnlineJobs.ph"
-            : lead.source?.replace(/-email$/, "").replaceAll("-", " ")
-          return [lead.title, lead.company, sourceLabel].some((value) =>
+            : lead.source?.startsWith("smileandhire")
+              ? "Smile & Hire"
+              : lead.source?.replace(/-email$/, "").replaceAll("-", " ")
+          return [lead.title, lead.company, sourceLabel, lead.source].some((value) =>
             value?.toLowerCase().includes(normalizedQuery),
           )
         }),
