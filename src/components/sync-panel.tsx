@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, Clock3, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { SourceSyncHistory } from "@/components/source-sync-history"
+import { WebsiteJobCounts, type WebsiteJobCountsProps } from "@/components/website-job-counts"
 import { useSyncHistory } from "@/hooks/use-sync-history"
 import type { Database, JobSyncRun } from "@/lib/database.types"
 import { formatPhilippineDateTime } from "@/lib/philippine-time"
@@ -25,6 +26,7 @@ export type SyncPanelProps = {
   checkedAt?: string | null
   onRefresh: () => void | Promise<void>
   isPreview?: boolean
+  websiteJobs?: WebsiteJobCountsProps
 }
 
 const toneClasses = {
@@ -44,6 +46,7 @@ export function SyncPanel({
   checkedAt = null,
   onRefresh,
   isPreview = false,
+  websiteJobs,
 }: SyncPanelProps) {
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
@@ -166,6 +169,7 @@ export function SyncPanel({
           </p>
         </div>
       </div>
+      {websiteJobs && <WebsiteJobCounts {...websiteJobs} />}
       <div className="overflow-hidden rounded-2xl border border-sky-200/70 bg-white/85 shadow-sm">
         <h3 className="border-b border-sky-100 px-5 py-4 text-sm font-semibold">
           {latestCron
@@ -272,7 +276,7 @@ export function SyncPanel({
         {checkedAt
           ? `Last status check: ${formatPhilippineDateTime(checkedAt)}. `
           : ""}
-        Refresh status only reads history; it does not start a job sync.
+        Refresh status only reads saved jobs and history; it does not start a job sync.
       </p>
     </section>
   )
@@ -281,10 +285,21 @@ export function SyncPanel({
 export function ConnectedSyncPanel({
   client,
   ownerId = null,
+  websiteJobs,
+  onRefreshJobs,
+  isJobsRefreshing = false,
 }: {
   client: SupabaseClient<Database>
   ownerId?: string | null
+  websiteJobs?: WebsiteJobCountsProps
+  onRefreshJobs?: () => Promise<void>
+  isJobsRefreshing?: boolean
 }) {
   const history = useSyncHistory(client, ownerId)
-  return <SyncPanel {...history} onRefresh={history.refresh} />
+  return <SyncPanel
+    {...history}
+    websiteJobs={websiteJobs}
+    isRefreshing={history.isRefreshing || isJobsRefreshing}
+    onRefresh={async () => { await Promise.all([history.refresh(), onRefreshJobs?.()]) }}
+  />
 }

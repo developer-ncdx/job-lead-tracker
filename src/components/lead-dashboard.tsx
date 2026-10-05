@@ -514,6 +514,7 @@ export function DashboardView({
                 lastSuccess={null}
                 onRefresh={() => undefined}
                 isPreview={isPreview}
+                websiteJobs={{ leads, isLoading, error }}
               />
             )}
           </div>
@@ -700,6 +701,9 @@ export function LeadDashboard({ client, session }: LeadDashboardProps) {
           key={session.user.id}
           client={client}
           ownerId={session.user.id}
+          websiteJobs={{ leads, isLoading, error }}
+          onRefreshJobs={refresh}
+          isJobsRefreshing={isRefreshing}
         />
       }
     />
@@ -732,7 +736,12 @@ export function PublicLeadDashboard({ client }: PublicLeadDashboardProps) {
       onSetNotInterested={setNotInterested}
       onSetRead={setRead}
       onSetApplied={setApplied}
-      syncPanel={<ConnectedSyncPanel client={client} />}
+      syncPanel={<ConnectedSyncPanel
+        client={client}
+        websiteJobs={{ leads, isLoading, error }}
+        onRefreshJobs={refresh}
+        isJobsRefreshing={isRefreshing}
+      />}
     />
   )
 }

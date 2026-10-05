@@ -256,12 +256,16 @@ extracting that source when actual OnlineJobs.ph job-alert messages arrive.
 ### Sync & cron page
 
 The main navbar links to `#job-leads` and `#sync-cron`, including direct links
-and browser back/forward navigation. The All jobs and Priority filters stay on
-the Job leads page, and their selection is preserved when switching pages.
+and browser back/forward navigation. Job search and status views remain on
+the job pages.
 The separate status page reads the latest 20 attempts, the most recent scheduled
 cron run, and the most recent successful or warning-completed run. Local and
 manual endpoint syncs never prove scheduled-cron health. It polls every minute
-while the tab is open and visible. **Refresh status** reads history only; it does
+while the tab is open and visible. A **Jobs by website** section groups all saved
+jobs by their import website, including applied and not-interested jobs, and
+combines email and web imports from the same source. Totals use the complete
+loaded job list rather than the current search or page of cards. **Refresh
+status** reads saved jobs and history; it does
 not start a sync or expose `CRON_SECRET` to the browser.
 
 Apply migration `20261001120511_job_sync_health.sql` and deploy the updated sync
