@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom"
+import { parseHTML } from "linkedom"
 import { matchesTargetRole } from "./role-filter.mjs"
 import { isRemoteOnlyJob } from "./sync-utils.mjs"
 
@@ -17,7 +17,7 @@ export function smileJobUrl(value) {
 }
 
 export function extractSmileListings(html, fetchedAt = new Date().toISOString()) {
-  const document = new JSDOM(html).window.document
+  const { document } = parseHTML(html)
   const seen = new Set()
   const jobs = []
   for (const anchor of document.querySelectorAll("a[href]")) {
@@ -57,7 +57,7 @@ export function extractSmileListings(html, fetchedAt = new Date().toISOString())
 }
 
 export function extractSmileDetail(html, listing, fetchedAt = new Date().toISOString()) {
-  const document = new JSDOM(html).window.document
+  const { document } = parseHTML(html)
   if (text(document.querySelector("h1")) !== listing.title) throw new Error("Stopped: detail title does not match the selected job")
   const headings = [...document.querySelectorAll("h2,h3")]
   const descriptionHeading = headings.find(heading => text(heading) === "Job Description")

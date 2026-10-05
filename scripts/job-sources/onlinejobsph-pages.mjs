@@ -1,5 +1,5 @@
 import { brotliDecompressSync } from "node:zlib"
-import { JSDOM } from "jsdom"
+import { parseHTML } from "linkedom"
 
 const ORIGIN = "https://www.onlinejobs.ph"
 
@@ -29,14 +29,14 @@ export function jobUrl(value) {
 }
 
 export function extractJobLinks(html) {
-  const document = new JSDOM(html).window.document
+  const { document } = parseHTML(html)
   return [...new Set([...document.querySelectorAll("a[href]")].map(a => {
     try { return jobUrl(a.getAttribute("href")) } catch { return null }
   }).filter(Boolean))]
 }
 
 export function extractJob(html, url) {
-  const document = new JSDOM(html).window.document
+  const { document } = parseHTML(html)
   document.querySelectorAll("script, style, nav, footer").forEach(el => el.remove())
   const text = document.body.textContent.replace(/\s+/g, " ").trim()
   const title = document.querySelector("h1")?.textContent.trim()

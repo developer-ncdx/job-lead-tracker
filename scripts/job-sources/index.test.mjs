@@ -13,7 +13,7 @@ describe("source selection", () => {
     config.onlinejobsph = { enabled: true, keywords: ["automation"], maxDetailPages: 1 }
     const onlineUrl = "https://www.onlinejobs.ph/jobseekers/job/automation-specialist-123"
     const fetchImpl = vi.fn(async url => new Response(url === onlineUrl
-      ? '<!doctype html><html><h1>Automation Specialist</h1>TYPE OF WORK Full Time WAGE / SALARY $10/hr HOURS PER WEEK 40 DATE UPDATED Oct 6, 2026 JOB OVERVIEW Remote workflows. SKILL REQUIREMENT JavaScript</html>'
+      ? '<!doctype html><html><body><h1>Automation Specialist</h1>TYPE OF WORK Full Time WAGE / SALARY $10/hr HOURS PER WEEK 40 DATE UPDATED Oct 6, 2026 JOB OVERVIEW Remote workflows. SKILL REQUIREMENT JavaScript</body></html>'
       : url.includes("onlinejobs.ph")
         ? `<!doctype html><html><a href="${onlineUrl}">Job</a></html>`
         : '<!doctype html><html><a href="/jobs/6625c8c9-7d5e-4f87-a22b-35767ff331b2"><div><div><div><span>Cloud</span><span>Company</span></div><h3>AWS Architect</h3><div><span>Full-Time</span><span>Expert</span><span title="Remote"><svg class="lucide-map-pin"></svg>Remote</span></div><p>Cloud work.</p></div><div><span>$10/hr</span></div></div></a></html>'))
