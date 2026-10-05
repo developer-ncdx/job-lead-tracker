@@ -34,6 +34,8 @@ const SOURCE_PRIORITY = Object.freeze({
   "linkedin-email": 2,
   "indeed-email": 2,
   "onlinejobsph-email": 2,
+  onlinejobsph: 2,
+  smileandhire: 2,
   "upwork-email": 2,
 })
 
@@ -90,7 +92,10 @@ export function deduplicateJobs(jobs) {
   const uniqueJobs = []
 
   for (const job of orderedJobs) {
-    const identity = jobIdentity(job)
+    // Email and web links can have different slugs for the same numeric job ID.
+    const identity = ["onlinejobsph", "onlinejobsph-email"].includes(job.source)
+      ? `onlinejobsph:${job.sourceJobId}`
+      : jobIdentity(job)
     const canonicalUrl = canonicalizeUrl(job.url)
     const fingerprint = jobFingerprint(job)
 
@@ -133,8 +138,8 @@ export function buildSupabaseRows(
 
     return {
       user_id: userId,
-      source: job.source,
-      source_job_id: job.sourceJobId,
+      source: existing?.source ?? job.source,
+      source_job_id: existing?.source_job_id ?? job.sourceJobId,
       title: existing?.title ?? job.title,
       description: existing?.description ?? job.description ?? "",
       url: existing?.url ?? job.url,

@@ -622,7 +622,7 @@ describe("email job alerts", () => {
     })
   })
 
-  it("leaves LinkedIn pages for the bounded backfill while enriching other providers", async () => {
+  it("leaves web-crawled and LinkedIn pages to their bounded adapters while enriching other providers", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(
         '<script type="application/ld+json">' +
@@ -644,8 +644,14 @@ describe("email job alerts", () => {
           url: "https://www.indeed.com/viewjob?jk=indeed-1",
           sourceTimestampAt: null,
         },
+        {
+          source: "onlinejobsph-email",
+          sourceJobId: "1456789",
+          url: "https://www.onlinejobs.ph/jobseekers/job/AI-Agent-Developer-1456789",
+          sourceTimestampAt: null,
+        },
       ],
-      { fetchImpl },
+      { fetchImpl, excludedSources: ["onlinejobsph-email"] },
     )
 
     expect(fetchImpl).toHaveBeenCalledOnce()
@@ -655,6 +661,7 @@ describe("email job alerts", () => {
     )
     expect(jobs[0].sourceTimestampAt).toBeNull()
     expect(jobs[1].sourceTimestampAt).toBe("2026-09-27T09:01:19.000Z")
+    expect(jobs[2].sourceTimestampAt).toBeNull()
   })
 
   it("extracts OnlineJobs.ph listings", () => {

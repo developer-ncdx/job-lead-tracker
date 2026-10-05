@@ -468,7 +468,7 @@ function providerPostingUrl(job) {
 
 export async function enrichEmailAlertPostedDates(
   jobs,
-  { fetchImpl = fetch, includeLinkedIn = false } = {},
+  { fetchImpl = fetch, includeLinkedIn = false, excludedSources = [] } = {},
 ) {
   const postingMetadata = new Map()
   const pending = [...new Map(
@@ -476,6 +476,7 @@ export async function enrichEmailAlertPostedDates(
       .filter(
         (job) =>
           !job.sourceTimestampAt &&
+          !excludedSources.includes(job.source) &&
           (includeLinkedIn || job.source !== "linkedin-email"),
       )
       .map((job) => [`${job.source}:${job.sourceJobId}`, job]),
@@ -574,8 +575,8 @@ export function resolveEmailAlertEnvironment(environment = process.env) {
 }
 
 export async function fetchEmailAlertJobs(
-  _config = {},
-  { environment = process.env, clientFactory = (options) => new ImapFlow(options) } = {},
+  config = {},
+  { environment = process.env, fetchImpl = fetch, clientFactory = (options) => new ImapFlow(options) } = {},
 ) {
   const settings = resolveEmailAlertEnvironment(environment)
 
@@ -664,7 +665,10 @@ export async function fetchEmailAlertJobs(
     }
 
     return settings.enrichPostedDates
-      ? enrichEmailAlertPostedDates(jobs)
+      ? enrichEmailAlertPostedDates(jobs, {
+          fetchImpl,
+          excludedSources: config.excludedEnrichmentSources ?? [],
+        })
       : jobs
   } catch (error) {
     if (error?.authenticationFailed) {

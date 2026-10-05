@@ -49,6 +49,7 @@ Open the Supabase SQL Editor and run these files in order:
 8. `supabase/migrations/20261001125847_streamline_sync_history_policies.sql`
 9. `supabase/migrations/20261005145001_job_lead_application_and_read_state.sql`
 10. `supabase/migrations/20261005150341_job_lead_not_interested_state.sql`
+11. `supabase/migrations/20261005171708_job_crawl_state.sql`
 
 The migrations create the `job_leads` table, source metadata, timestamp
 semantics, duplicate constraint, trigger, Realtime publication entry, grants,
@@ -283,6 +284,23 @@ The production deployment includes a protected Vercel Function at
 hour. A run with one or more failed sources returns a failure response and
 sends a notification email containing the cron title and source errors.
 
+The same hourly endpoint includes OnlineJobs.ph and Smile & Hire when their
+entries in `job-sources.config.json` are enabled. OnlineJobs.ph reads one search
+page for each of the five configured keywords and up to six job detail pages
+per run. Smile & Hire reads `/jobs` and up to three matching job detail pages.
+Requests within each site are sequential with five-second spacing. Inspected
+details are cached for 24 hours, and new job IDs take precedence over refreshes.
+Both sources retain the existing role and remote-only filters. OnlineJobs.ph
+email alerts reuse the same saved job IDs; their additional page enrichment is
+disabled while the web adapter is enabled.
+
+The crawler-state migration creates a server-only cache with no browser access.
+Each source has an overlap lease and a persisted cooldown. HTTP 401/403 pauses
+that site for 24 hours; HTTP 429 honors `Retry-After` or pauses for one hour.
+Requests are not retried within a run. Each site appears separately as
+`onlinejobsph:web` or `smileandhire:web` in Sync & cron history. Read, applied,
+and not-interested states are preserved when existing jobs are refreshed.
+
 Add these server-only variables under **Vercel → Project Settings →
 Environment Variables** for the Production environment, then redeploy:
 
@@ -433,8 +451,8 @@ from migration `001` remain in place.
 
 A standalone, manual POC reads one public search page and at most three public
 job detail pages, waits five seconds between requests, and saves a JSON preview.
-It does not write to the database or run in the scheduled sync. It uses `jsdom`
-from the development dependencies, so run it from a full local installation.
+It does not write to the database or run in the scheduled sync. The scheduled
+web adapter uses the same parsers with its own bounded request budget and cache.
 
 ```sh
 node scripts/poc/onlinejobs.mjs --keyword=developer --limit=1
@@ -504,7 +522,8 @@ It can enrich up to three public job descriptions, waits five seconds between
 requests, and stops on HTTP errors, redirects, or missing expected content.
 It does not sign in, submit applications, or call private endpoints. The JSON
 is saved to `smileandhire-poc.local/results.json` (ignored by Git). It uses
-`jsdom` from the development dependencies and is not part of scheduled sync.
+the shared HTML parsers and is not part of scheduled sync; the production web
+adapter has a separate hourly request budget and cache.
 
 On October 5, 2026 the public page exposed 12 listings without login. One
 matched the existing title filter: AI Implementation Specialist (Client Systems

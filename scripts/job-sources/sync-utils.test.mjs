@@ -87,6 +87,15 @@ describe("job sync utilities", () => {
     )
   })
 
+  it("deduplicates new OnlineJobs web and email jobs even when their URL slugs differ", () => {
+    const job = { source: "onlinejobsph", sourceJobId: "123", title: "Automation Specialist", url: "https://www.onlinejobs.ph/jobseekers/job/new-title-123" }
+    const jobs = deduplicateJobs([
+      job,
+      { ...job, source: "onlinejobsph-email", title: "Old email title", url: "https://www.onlinejobs.ph/jobseekers/job/old-title-123" },
+    ])
+    expect(jobs).toEqual([job])
+  })
+
   it("retains equivalent titles posted in different locations", () => {
     const jobs = deduplicateJobs([
       greenhouseJob,

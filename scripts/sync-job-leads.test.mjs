@@ -1,6 +1,21 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { summarizeLinkedInTimestampBackfill } from "./sync-job-leads.mjs"
+import { loadExistingLeads, summarizeLinkedInTimestampBackfill } from "./sync-job-leads.mjs"
+import { buildSupabaseRows } from "./job-sources/sync-utils.mjs"
+
+it("reuses OnlineJobs email identities during web imports and leaves tracking fields untouched", async () => {
+  const existing = { source: "onlinejobsph-email", source_job_id: "123", title: "My saved title", url: "https://www.onlinejobs.ph/jobseekers/job/saved-123", description: "My notes", is_read: true, applied_at: "2026-10-06T00:00:00Z", not_interested_at: null }
+  const query = { select: vi.fn(), eq: vi.fn(), in: vi.fn(), is: vi.fn() }
+  for (const name of ["select", "eq", "in"]) query[name].mockReturnValue(query)
+  query.is.mockResolvedValue({ data: [existing], error: null })
+  const client = { from: () => query }
+  const jobs = [{ source: "onlinejobsph", sourceJobId: "123", title: "Automation Specialist", url: "https://www.onlinejobs.ph/jobseekers/job/new-slug-123", isRemote: true }]
+  const map = await loadExistingLeads(client, null, jobs)
+  expect(query.in).toHaveBeenCalledWith("source", ["onlinejobsph", "onlinejobsph-email"])
+  const [row] = buildSupabaseRows(jobs, null, { existingByIdentity: map })
+  expect(row).toMatchObject({ source: "onlinejobsph-email", source_job_id: "123", title: "My saved title", description: "My notes", url: existing.url })
+  for (const field of ["is_read", "applied_at", "not_interested_at"]) expect(row).not.toHaveProperty(field)
+})
 
 describe("LinkedIn date backfill sync summary", () => {
   it("treats blocked provider pages as a non-fatal warning", () => {

@@ -8,6 +8,7 @@ import {
 import { fetchConfiguredSourceResults } from "./job-sources/index.mjs"
 import { backfillLinkedInTimestamps } from "./job-sources/linkedin-timestamp-backfill.mjs"
 import { matchesTargetRole } from "./job-sources/role-filter.mjs"
+import { fetchSupabaseJson } from "./job-sources/supabase-fetch.mjs"
 import {
   startSyncRun,
   finishSyncRun,
@@ -80,7 +81,7 @@ export function summarizeLinkedInTimestampBackfill(backfill) {
   }
 }
 
-async function loadExistingLeads(client, userId, jobs) {
+export async function loadExistingLeads(client, userId, jobs) {
   const existingByIdentity = new Map()
   const jobsBySource = new Map()
 
@@ -95,11 +96,14 @@ async function loadExistingLeads(client, userId, jobs) {
       let query = client
         .from("job_leads")
         .select("*")
-        .eq("source", source)
         .in(
           "source_job_id",
           jobBatch.map((job) => job.sourceJobId),
         )
+
+      query = ["onlinejobsph", "onlinejobsph-email"].includes(source)
+        ? query.in("source", ["onlinejobsph", "onlinejobsph-email"])
+        : query.eq("source", source)
 
       query = userId ? query.eq("user_id", userId) : query.is("user_id", null)
 
@@ -113,6 +117,10 @@ async function loadExistingLeads(client, userId, jobs) {
 
       for (const lead of data ?? []) {
         existingByIdentity.set(`${lead.source}:${lead.source_job_id}`, lead)
+        const requestedIdentity = `${source}:${lead.source_job_id}`
+        if (!existingByIdentity.has(requestedIdentity) || lead.source === source) {
+          existingByIdentity.set(requestedIdentity, lead)
+        }
       }
     }
   }
@@ -180,6 +188,7 @@ export async function runJobSync({
         supabaseEnvironment.serviceRoleKey,
         {
           auth: { autoRefreshToken: false, persistSession: false },
+          global: { fetch: fetchSupabaseJson },
         },
       )
   let syncRunId = null
@@ -213,6 +222,8 @@ export async function runJobSync({
     const sourceResults = await sourceFetcher(sourceConfig, {
       environment,
       fetchImpl,
+      client,
+      userId: supabaseEnvironment.ownerId,
     })
     const fetchedJobs = sourceResults
       .filter((result) => result.status === "ok")
@@ -271,6 +282,10 @@ export async function runJobSync({
     const rows = buildSupabaseRows(jobs, supabaseEnvironment.ownerId, {
       existingByIdentity,
     })
+    for (const job of jobs) {
+      const existing = existingByIdentity.get(jobIdentity(job))
+      if (existing) summaryIndexByIdentity.set(`${existing.source}:${existing.source_job_id}`, summaryIndexByIdentity.get(jobIdentity(job)))
+    }
 
     for (const summary of sourceSummaries) {
       summary.new_jobs = 0

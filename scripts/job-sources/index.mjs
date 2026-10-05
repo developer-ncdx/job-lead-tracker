@@ -20,6 +20,9 @@ import { fetchSmartRecruitersJobs } from "./smartrecruiters.mjs"
 import { fetchTheMuseJobs } from "./the-muse.mjs"
 import { fetchWeWorkRemotelyJobs } from "./we-work-remotely.mjs"
 import { fetchWorkableJobs } from "./workable.mjs"
+import { fetchOnlineJobsPhJobs } from "./onlinejobsph.mjs"
+import { fetchSmileAndHireJobs } from "./smileandhire.mjs"
+import { captureCrawlResult } from "./crawl-state.mjs"
 
 const BOARD_ADAPTERS = Object.freeze({
   greenhouse: fetchGreenhouseJobs,
@@ -43,6 +46,11 @@ const PUBLIC_FEED_ADAPTERS = Object.freeze({
   eures: fetchEuresJobs,
   ayla: fetchAylaJobs,
   nomado24: fetchNomado24Jobs,
+})
+
+const WEB_CRAWL_ADAPTERS = Object.freeze({
+  onlinejobsph: fetchOnlineJobsPhJobs,
+  smileandhire: fetchSmileAndHireJobs,
 })
 
 async function captureSourceResult(source, name, fetchJobs) {
@@ -73,7 +81,7 @@ async function captureSourceResult(source, name, fetchJobs) {
 
 export async function fetchConfiguredSourceResults(
   config,
-  { environment = process.env, fetchImpl = fetch } = {},
+  { environment = process.env, fetchImpl = fetch, client = null, userId = null, wait } = {},
 ) {
   const disabledPublicFeeds = new Set(
     (environment.JOB_DISABLED_PUBLIC_FEEDS ?? "")
@@ -101,7 +109,13 @@ export async function fetchConfiguredSourceResults(
         fetchJobs(config[source], { fetchImpl, environment }),
       ),
     )
-  const results = await Promise.all([...boardTasks, ...publicFeedTasks])
+  const crawlTasks = Object.entries(WEB_CRAWL_ADAPTERS).map(([source, fetchJobs]) => {
+    if (config[source]?.enabled !== true || disabledPublicFeeds.has(source)) {
+      return Promise.resolve({ source, name: `${source}:web`, status: "skipped", jobs: [], durationMs: 0, error: disabledPublicFeeds.has(source) ? "disabled by JOB_DISABLED_PUBLIC_FEEDS" : "disabled in job-sources.config.json" })
+    }
+    return captureCrawlResult(source, state => fetchJobs(config[source], { fetchImpl, wait, state }), { client, userId })
+  })
+  const results = await Promise.all([...boardTasks, ...publicFeedTasks, ...crawlTasks])
 
   for (const source of Object.keys(PUBLIC_FEED_ADAPTERS)) {
     if (disabledPublicFeeds.has(source)) {
@@ -179,7 +193,13 @@ export async function fetchConfiguredSourceResults(
   } else {
     results.push(
       await captureSourceResult("email-alerts", "email-alerts:gmail", () =>
-        fetchEmailAlertJobs({}, { environment }),
+        // The web adapter owns OnlineJobs page requests, their budget, and
+        // provider cooldowns. Email alerts still contribute their parsed jobs.
+        fetchEmailAlertJobs({
+          excludedEnrichmentSources: config.onlinejobsph?.enabled === true
+            ? ["onlinejobsph-email"]
+            : [],
+        }, { environment, fetchImpl }),
       ),
     )
   }

@@ -183,5 +183,14 @@
     ],
     "pages": 1
   },
+  "onlinejobsph": {
+    "enabled": true,
+    "keywords": ["developer", "automation", "n8n", "AI engineer", "Bubble"],
+    "maxDetailPages": 6
+  },
+  "smileandhire": {
+    "enabled": true,
+    "maxDetailPages": 3
+  },
   "pollIntervalMinutes": 60
 }
