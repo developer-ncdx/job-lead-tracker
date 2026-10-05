@@ -29,7 +29,7 @@ const sourceWebsites: Record<string, string> = {
 
 type JobWebsite = Pick<JobLead, "source" | "url">
 
-function websiteForJob(job: JobWebsite) {
+export function websiteForJob(job: JobWebsite) {
   const source = job.source?.trim().toLowerCase().replace(/-email$/, "") ?? ""
   if (Object.hasOwn(sourceWebsites, source)) return sourceWebsites[source]
   try {
