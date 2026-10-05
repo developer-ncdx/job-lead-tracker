@@ -421,3 +421,44 @@ Before deploying publicly, set `VITE_AUTH_MODE=authenticated`, remove the three
 `Anonymous users can ...` policies created by migration `003`, and revoke all
 `job_leads` privileges from `anon`. The owner-scoped authenticated policies
 from migration `001` remain in place.
+
+### OnlineJobs.ph crawling POC
+
+A standalone, manual POC reads one public search page and at most three public
+job detail pages, waits five seconds between requests, and saves a JSON preview.
+It does not write to the database or run in the scheduled sync. It uses `jsdom`
+from the development dependencies, so run it from a full local installation.
+
+```sh
+node scripts/poc/onlinejobs.mjs --keyword=developer --limit=1
+# Optional: --output=/absolute/path/jobs.json (default: /tmp/onlinejobs-poc.json)
+
+# Small batch: developer, automation, n8n, AI engineer, Bubble
+node scripts/poc/onlinejobs-batch.mjs
+# Continue a stopped batch, preserving completed keywords
+node scripts/poc/onlinejobs-batch.mjs --resume
+```
+
+The batch reads one search page per keyword and up to three new job pages per
+keyword. It deduplicates by job ID before requesting detail pages, spaces all
+requests by at least five seconds, and saves results after each completed
+keyword to `onlinejobs-poc.local/results.json` (ignored by Git). Each job includes
+its discovery keyword and whether its title matches the tracker's role filter.
+If a request fails, the batch stops and retains completed keywords' results.
+An HTTP 410 (Gone) job detail page is recorded in `skippedJobs` and skipped
+without retries; the batch can continue to the other selected jobs. A search
+page error or access-denied/rate-limit response still stops the run.
+
+Fields include title, URL, source ID, salary, employment type, weekly hours,
+description, and the displayed update date. The update date is not treated as
+an original posting date. It stops on HTTP errors other than gone detail pages,
+redirects, non-HTML responses, or missing expected content, without retries or
+bypassing restrictions. It also
+handles HTML arriving as Brotli-compressed bytes without encoding headers.
+
+OnlineJobs.ph terms section 7.4 requires express permission for automated access;
+its robots.txt crawl delay does not replace that permission. On October 5, 2026,
+the live batch extracted 14 unique jobs across the five starter keywords without
+login, including 10 titles matching the tracker's role filter. One expired job
+page returned HTTP 410 and was skipped. This verifies a small manual run, not
+sustained access or unattended crawling across all keywords.
