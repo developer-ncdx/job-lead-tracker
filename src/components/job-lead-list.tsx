@@ -17,8 +17,14 @@ type JobLeadListProps = {
   isLoading: boolean
   error: string | null
   onRetry: () => void | Promise<void>
-  onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
-  priorityOnly?: boolean
+  onSetNotInterested: (leadId: string, isNotInterested: boolean) => Promise<void>
+  onSetRead: (leadId: string, isRead: boolean) => Promise<void>
+  onSetApplied: (leadId: string, isApplied: boolean) => Promise<void>
+  notInterestedOnly?: boolean
+  appliedOnly?: boolean
+  readFilter?: "all" | "read" | "unread"
+  hasSearchQuery?: boolean
+  onClearSearch?: () => void
   readOnly?: boolean
 }
 
@@ -44,8 +50,14 @@ export function JobLeadList({
   isLoading,
   error,
   onRetry,
-  onSetPriority,
-  priorityOnly = false,
+  onSetNotInterested,
+  onSetRead,
+  onSetApplied,
+  notInterestedOnly = false,
+  appliedOnly = false,
+  readFilter = "all",
+  hasSearchQuery = false,
+  onClearSearch,
   readOnly = false,
 }: JobLeadListProps) {
   if (isLoading) {
@@ -82,21 +94,27 @@ export function JobLeadList({
             <Inbox className="size-5" aria-hidden="true" />
           </div>
           <h2 className="text-base font-semibold">
-            {priorityOnly ? "No priority jobs yet" : "No job leads yet"}
+            {hasSearchQuery ? "No matching jobs" : readFilter !== "all" ? `No ${readFilter} jobs` : appliedOnly ? "No applied jobs yet" : notInterestedOnly ? "No jobs marked not interested" : "No job leads yet"}
           </h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            {priorityOnly
-              ? "Use Set priority on a job to add it to this list."
+            {hasSearchQuery
+              ? "Try a different search or change the read filter."
+              : readFilter !== "all"
+              ? "No jobs in this view have that read status. Change the read filter to see more jobs."
+              : appliedOnly
+                ? "Use Mark applied on a job to keep track of your applications here."
+                : notInterestedOnly
+                  ? "Use Not interested on a job to move it here. You can restore it with Undo."
               : "Leads created by your external source will appear here automatically once they are assigned to your Supabase user."}
           </p>
           <Button
             variant="outline"
             size="sm"
             className="mt-5 border-sky-200 bg-white text-sky-800 hover:bg-sky-50"
-            onClick={() => void onRetry()}
+            onClick={() => hasSearchQuery && onClearSearch ? onClearSearch() : void onRetry()}
           >
-            <RefreshCw />
-            Check again
+            {!hasSearchQuery && <RefreshCw />}
+            {hasSearchQuery ? "Clear search" : "Check again"}
           </Button>
         </CardContent>
       </Card>
@@ -125,7 +143,9 @@ export function JobLeadList({
           <JobLeadCard
             key={lead.id}
             lead={lead}
-            onSetPriority={onSetPriority}
+            onSetNotInterested={onSetNotInterested}
+            onSetRead={onSetRead}
+            onSetApplied={onSetApplied}
             readOnly={readOnly}
           />
         ))}

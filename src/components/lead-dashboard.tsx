@@ -17,10 +17,13 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ClipboardCheck,
   LoaderCircle,
   LogOut,
   RefreshCw,
-  Star,
+  Search,
+  ThumbsDown,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -59,7 +62,9 @@ type DashboardViewProps = {
   isPreview?: boolean
   onSignOut?: () => void | Promise<void>
   onRefresh: () => void | Promise<void>
-  onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
+  onSetNotInterested: (leadId: string, isNotInterested: boolean) => Promise<void>
+  onSetRead: (leadId: string, isRead: boolean) => Promise<void>
+  onSetApplied: (leadId: string, isApplied: boolean) => Promise<void>
   syncPanel?: ReactNode
 }
 
@@ -77,6 +82,9 @@ const previewLeads: JobLead[] = [
     location: "Remote — Worldwide",
     is_remote: true,
     is_priority: true,
+    is_read: false,
+    applied_at: null,
+    not_interested_at: null,
     source_timestamp_at: "2026-09-23T12:30:00.000Z",
     source_timestamp_kind: "published",
     source_timestamp_label: null,
@@ -98,6 +106,9 @@ const previewLeads: JobLead[] = [
     location: "Manila, Philippines",
     is_remote: false,
     is_priority: false,
+    is_read: true,
+    applied_at: "2026-09-24T02:00:00.000Z",
+    not_interested_at: null,
     source_timestamp_at: "2026-09-23T09:15:00.000Z",
     source_timestamp_kind: "published",
     source_timestamp_label: null,
@@ -119,6 +130,9 @@ const previewLeads: JobLead[] = [
     location: "Remote",
     is_remote: true,
     is_priority: false,
+    is_read: false,
+    applied_at: null,
+    not_interested_at: null,
     source_timestamp_at: "2026-09-22T16:45:00.000Z",
     source_timestamp_kind: "updated",
     source_timestamp_label: null,
@@ -128,6 +142,15 @@ const previewLeads: JobLead[] = [
     updated_at: "2026-09-22T16:45:00.000Z",
   },
 ]
+
+type MainPage = "jobs" | "applied" | "not-interested" | "sync"
+
+function pageFromHash(): MainPage {
+  if (window.location.hash === "#sync-cron") return "sync"
+  if (window.location.hash === "#applied-jobs") return "applied"
+  if (window.location.hash === "#not-interested") return "not-interested"
+  return "jobs"
+}
 
 export function DashboardView({
   leads,
@@ -141,29 +164,48 @@ export function DashboardView({
   isPreview = false,
   onSignOut,
   onRefresh,
-  onSetPriority,
+  onSetNotInterested,
+  onSetRead,
+  onSetApplied,
   syncPanel,
 }: DashboardViewProps) {
   const [sortOrder, setSortOrder] = useState<JobLeadSortOrder>("newest")
-  const [mainPage, setMainPage] = useState<"jobs" | "sync">(() =>
-    window.location.hash === "#sync-cron" ? "sync" : "jobs",
-  )
-  const [activeView, setActiveView] = useState<"all" | "priority">("all")
+  const [mainPage, setMainPage] = useState<MainPage>(pageFromHash)
+  const [readFilter, setReadFilter] = useState<"all" | "read" | "unread">("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const listStartRef = useRef<HTMLDivElement>(null)
-  const priorityCount = leads.filter((lead) => lead.is_priority).length
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+  const notInterestedCount = leads.filter((lead) => lead.not_interested_at).length
+  const availableCount = leads.filter((lead) => !lead.applied_at && !lead.not_interested_at).length
+  const appliedCount = leads.filter((lead) => lead.applied_at).length
+  const isJobPage = mainPage !== "sync"
   const sortedLeads = useMemo(
-    () =>
-      sortJobLeadsByTimestamp(
-        activeView === "priority"
-          ? leads.filter((lead) => lead.is_priority)
-          : leads,
+    () => {
+      const viewLeads = mainPage === "applied"
+        ? leads.filter((lead) => lead.applied_at)
+        : mainPage === "not-interested"
+          ? leads.filter((lead) => lead.not_interested_at)
+          : leads.filter((lead) => !lead.applied_at && !lead.not_interested_at)
+      return sortJobLeadsByTimestamp(
+        viewLeads.filter((lead) => {
+          if (readFilter !== "all" && Boolean(lead.is_read) !== (readFilter === "read")) return false
+          const sourceLabel = lead.source?.startsWith("onlinejobsph")
+            ? "OnlineJobs.ph"
+            : lead.source?.replace(/-email$/, "").replaceAll("-", " ")
+          return [lead.title, lead.company, sourceLabel].some((value) =>
+            value?.toLowerCase().includes(normalizedQuery),
+          )
+        }),
         sortOrder,
-      ),
-    [activeView, leads, sortOrder],
+      )
+    },
+    [mainPage, readFilter, normalizedQuery, leads, sortOrder],
   )
-  const leadLabel = leads.length === 1 ? "1 lead" : `${leads.length} leads`
+  const viewCount = mainPage === "applied" ? appliedCount : mainPage === "not-interested" ? notInterestedCount : availableCount
+  const leadLabel = viewCount === 1 ? "1 lead" : `${viewCount} leads`
   const pageCount = Math.max(1, Math.ceil(sortedLeads.length / pageSize))
   const currentPage = Math.min(page, pageCount)
   const firstVisibleLead = (currentPage - 1) * pageSize
@@ -173,8 +215,11 @@ export function DashboardView({
   )
 
   useEffect(() => {
-    const updatePage = () =>
-      setMainPage(window.location.hash === "#sync-cron" ? "sync" : "jobs")
+    const updatePage = () => {
+      setMainPage(pageFromHash())
+      setPage(1)
+      setReadFilter("all")
+    }
     window.addEventListener("hashchange", updatePage)
     window.addEventListener("popstate", updatePage)
     return () => {
@@ -185,7 +230,7 @@ export function DashboardView({
 
   function navigate(
     event: MouseEvent<HTMLAnchorElement>,
-    nextPage: "jobs" | "sync",
+    nextPage: MainPage,
   ) {
     // Keep native modified-click behavior, including opening a page in a new tab.
     if (
@@ -197,9 +242,11 @@ export function DashboardView({
     )
       return
     event.preventDefault()
-    const hash = nextPage === "sync" ? "#sync-cron" : "#job-leads"
+    const hash = nextPage === "sync" ? "#sync-cron" : nextPage === "applied" ? "#applied-jobs" : nextPage === "not-interested" ? "#not-interested" : "#job-leads"
     if (window.location.hash !== hash) window.history.pushState(null, "", hash)
     setMainPage(nextPage)
+    setPage(1)
+    setReadFilter("all")
   }
 
   function changePage(nextPage: number) {
@@ -210,6 +257,12 @@ export function DashboardView({
         block: "start",
       }),
     )
+  }
+
+  function clearSearch() {
+    setSearchQuery("")
+    setPage(1)
+    searchInputRef.current?.focus()
   }
 
   function changePageSize(nextPageSize: number) {
@@ -275,7 +328,7 @@ export function DashboardView({
           aria-label="Main navigation"
           className="border-t border-sky-100/80"
         >
-          <div className="mx-auto flex max-w-5xl items-center gap-5 px-4 sm:gap-7 sm:px-6">
+          <div className="mx-auto flex max-w-5xl items-center gap-3 overflow-x-auto px-4 sm:gap-7 sm:px-6 [&>a]:shrink-0">
             <a
               href="#job-leads"
               onClick={(event) => navigate(event, "jobs")}
@@ -284,6 +337,24 @@ export function DashboardView({
             >
               <BriefcaseBusiness className="size-4" aria-hidden="true" /> Job
               leads
+            </a>
+            <a
+              href="#applied-jobs"
+              onClick={(event) => navigate(event, "applied")}
+              aria-current={mainPage === "applied" ? "page" : undefined}
+              className={`flex min-h-12 items-center gap-2 border-b-2 px-1 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 ${mainPage === "applied" ? "border-sky-500 text-sky-800" : "border-transparent text-slate-500 hover:border-sky-200 hover:text-sky-700"}`}
+            >
+              <ClipboardCheck className="size-4" aria-hidden="true" /> Applied jobs
+              <span aria-label={`${appliedCount} applied jobs`} className="rounded-full bg-slate-100 px-1.5 text-[11px] text-slate-600">{appliedCount}</span>
+            </a>
+            <a
+              href="#not-interested"
+              onClick={(event) => navigate(event, "not-interested")}
+              aria-current={mainPage === "not-interested" ? "page" : undefined}
+              className={`flex min-h-12 items-center gap-2 border-b-2 px-1 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 ${mainPage === "not-interested" ? "border-sky-500 text-sky-800" : "border-transparent text-slate-500 hover:border-sky-200 hover:text-sky-700"}`}
+            >
+              <ThumbsDown className="size-4" aria-hidden="true" /> Not interested
+              <span aria-label={`${notInterestedCount} not interested jobs`} className="rounded-full bg-slate-100 px-1.5 text-[11px] text-slate-600">{notInterestedCount}</span>
             </a>
             <a
               href="#sync-cron"
@@ -302,9 +373,9 @@ export function DashboardView({
           <div>
             <div className="mb-3 flex items-center gap-2">
               <span className="text-xs font-semibold tracking-[0.16em] text-sky-700 uppercase">
-                {mainPage === "jobs" ? "Your pipeline" : "Operations"}
+                {mainPage === "sync" ? "Operations" : mainPage === "applied" ? "Your applications" : mainPage === "not-interested" ? "Dismissed jobs" : "Your pipeline"}
               </span>
-              {mainPage === "jobs" && !isLoading && (
+              {isJobPage && !isLoading && (
                 <Badge
                   variant="secondary"
                   className="rounded-full border border-sky-200 bg-sky-100/80 text-sky-800"
@@ -314,11 +385,11 @@ export function DashboardView({
               )}
             </div>
             <h1 className="bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-3xl font-semibold tracking-[-0.04em] text-transparent sm:text-4xl">
-              {mainPage === "sync" ? "Sync & cron" : "Job leads"}
+              {mainPage === "sync" ? "Sync & cron" : mainPage === "applied" ? "Applied jobs" : mainPage === "not-interested" ? "Not interested" : "Job leads"}
             </h1>
           </div>
 
-          {mainPage === "jobs" && (
+          {isJobPage && (
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
@@ -351,83 +422,65 @@ export function DashboardView({
           )}
         </section>
 
-        {mainPage === "jobs" && (
-          <div
-            className="mb-5 flex w-fit items-center rounded-xl border border-sky-200/60 bg-white/60 p-1 shadow-sm backdrop-blur"
-            role="tablist"
-            aria-label="Job lead views"
-            onKeyDown={(event) => {
-              if (
-                !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
-              )
-                return
-              event.preventDefault()
-              const tabs = [
-                ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-                  '[role="tab"]',
-                ),
-              ]
-              const current = tabs.indexOf(event.target as HTMLButtonElement)
-              const next =
-                event.key === "Home"
-                  ? 0
-                  : event.key === "End"
-                    ? tabs.length - 1
-                    : (current +
-                        (event.key === "ArrowRight" ? 1 : -1) +
-                        tabs.length) %
-                      tabs.length
-              tabs[next]?.focus()
-              tabs[next]?.click()
-            }}
-          >
-            <Button
-              type="button"
-              role="tab"
-              aria-selected={activeView === "all"}
-              aria-controls="jobs-panel"
-              id="all-jobs-tab"
-              tabIndex={activeView === "all" ? 0 : -1}
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setActiveView("all")
-                setPage(1)
-              }}
-              className={
-                activeView === "all"
-                  ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm hover:from-sky-500 hover:to-blue-600"
-                  : "text-muted-foreground"
-              }
-            >
-              All jobs
-              <span className="text-xs">{leads.length}</span>
-            </Button>
-            <Button
-              type="button"
-              role="tab"
-              aria-selected={activeView === "priority"}
-              aria-controls="jobs-panel"
-              id="priority-tab"
-              tabIndex={activeView === "priority" ? 0 : -1}
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setActiveView("priority")
-                setPage(1)
-              }}
-              className={
-                activeView === "priority"
-                  ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm hover:from-sky-500 hover:to-blue-600"
-                  : "text-muted-foreground"
-              }
-            >
-              <Star
-                className={activeView === "priority" ? "fill-current" : ""}
+        {isJobPage && (
+          <div className="mb-4 w-full max-w-sm">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <Input
+                ref={searchInputRef}
+                type="search"
+                aria-label="Search jobs"
+                placeholder="Search titles, companies, or sources…"
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value)
+                  setPage(1)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") clearSearch()
+                }}
+                className="h-11 border-sky-200/80 bg-white/85 pr-12 pl-10 text-slate-700 shadow-sm [&::-webkit-search-cancel-button]:appearance-none"
               />
-              Priority
-              <span className="text-xs">{priorityCount}</span>
-            </Button>
+              {searchQuery && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Clear job search"
+                  onClick={clearSearch}
+                  className="absolute top-1/2 right-1.5 -translate-y-1/2 text-slate-500 hover:bg-sky-50"
+                >
+                  <X aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+            <p aria-live="polite" aria-atomic="true" className="mt-2 text-xs text-slate-600">
+              {normalizedQuery && !isLoading ? `${sortedLeads.length} ${sortedLeads.length === 1 ? "job" : "jobs"} found` : ""}
+            </p>
+          </div>
+        )}
+
+        {isJobPage && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-600">
+              {mainPage === "applied" ? "Jobs you marked as applied. Use Undo to remove a saved application." : mainPage === "not-interested" ? "Jobs you dismissed. Use Undo to return a job to your leads." : "Unread jobs are highlighted. Read jobs are shown in gray."}
+            </p>
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+              Read status
+              <select
+                aria-label="Filter by read status"
+                value={readFilter}
+                onChange={(event) => {
+                  setReadFilter(event.target.value as "all" | "read" | "unread")
+                  setPage(1)
+                }}
+                className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+              >
+                <option value="all">All read states</option>
+                <option value="unread">Unread</option>
+                <option value="read">Read</option>
+              </select>
+            </label>
           </div>
         )}
 
@@ -435,13 +488,13 @@ export function DashboardView({
           <Alert className="mb-5 border-amber-200 bg-amber-50/80 text-amber-950">
             <CloudOff className="text-amber-700" />
             <AlertDescription className="text-amber-900/75">
-              You can explore the interface now. Prioritizing, refreshing, and
+              You can explore the interface now. Saving job status, refreshing, and
               live sync will become available after Supabase is connected.
             </AlertDescription>
           </Alert>
         )}
 
-        {realtimeWarning && mainPage === "jobs" && (
+        {realtimeWarning && isJobPage && (
           <Alert className="mb-5 border-amber-200 bg-amber-50/80 text-amber-950">
             <CloudOff className="text-amber-700" />
             <AlertDescription className="text-amber-900/75">
@@ -465,11 +518,9 @@ export function DashboardView({
         ) : (
           <div
             ref={listStartRef}
-            id="jobs-panel"
-            role="tabpanel"
-            aria-labelledby={
-              activeView === "priority" ? "priority-tab" : "all-jobs-tab"
-            }
+            id={`${mainPage}-panel`}
+            role="region"
+            aria-label={mainPage === "applied" ? "Applied jobs list" : mainPage === "not-interested" ? "Not interested jobs list" : "Job leads list"}
             className="scroll-mt-5"
           >
             <JobLeadList
@@ -477,14 +528,20 @@ export function DashboardView({
               isLoading={isLoading}
               error={error}
               onRetry={onRefresh}
-              onSetPriority={onSetPriority}
-              priorityOnly={activeView === "priority"}
+              onSetNotInterested={onSetNotInterested}
+              onSetRead={onSetRead}
+              onSetApplied={onSetApplied}
+              notInterestedOnly={mainPage === "not-interested"}
+              appliedOnly={mainPage === "applied"}
+              readFilter={readFilter}
+              hasSearchQuery={Boolean(normalizedQuery)}
+              onClearSearch={clearSearch}
               readOnly={isPreview}
             />
           </div>
         )}
 
-        {mainPage === "jobs" && !isLoading && sortedLeads.length > pageSize && (
+        {isJobPage && !isLoading && sortedLeads.length > pageSize && (
           <nav
             className="mt-7 flex justify-center overflow-x-auto px-1 py-1"
             aria-label="Job lead pagination"
@@ -598,7 +655,9 @@ export function LeadDashboard({ client, session }: LeadDashboardProps) {
     error,
     realtimeWarning,
     refresh,
-    setPriority,
+    setNotInterested,
+    setRead,
+    setApplied,
   } = useJobLeads(client, session.user.id)
 
   async function handleSignOut() {
@@ -631,7 +690,9 @@ export function LeadDashboard({ client, session }: LeadDashboardProps) {
       isSigningOut={isSigningOut}
       onSignOut={handleSignOut}
       onRefresh={refresh}
-      onSetPriority={setPriority}
+      onSetNotInterested={setNotInterested}
+      onSetRead={setRead}
+      onSetApplied={setApplied}
       syncPanel={
         <ConnectedSyncPanel
           key={session.user.id}
@@ -651,7 +712,9 @@ export function PublicLeadDashboard({ client }: PublicLeadDashboardProps) {
     error,
     realtimeWarning,
     refresh,
-    setPriority,
+    setNotInterested,
+    setRead,
+    setApplied,
   } = useJobLeads(client)
 
   return (
@@ -664,7 +727,9 @@ export function PublicLeadDashboard({ client }: PublicLeadDashboardProps) {
       userLabel="No sign-in required"
       headerBadgeLabel="Public local mode"
       onRefresh={refresh}
-      onSetPriority={setPriority}
+      onSetNotInterested={setNotInterested}
+      onSetRead={setRead}
+      onSetApplied={setApplied}
       syncPanel={<ConnectedSyncPanel client={client} />}
     />
   )
@@ -681,7 +746,9 @@ export function PreviewLeadDashboard() {
       userLabel="Local preview"
       isPreview
       onRefresh={() => undefined}
-      onSetPriority={() => Promise.resolve()}
+      onSetNotInterested={() => Promise.resolve()}
+      onSetRead={() => Promise.resolve()}
+      onSetApplied={() => Promise.resolve()}
     />
   )
 }

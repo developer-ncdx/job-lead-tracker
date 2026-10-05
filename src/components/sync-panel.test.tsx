@@ -10,7 +10,7 @@ afterEach(() => {
   window.history.replaceState(null, "", "/")
 })
 describe("Sync & cron navigation", () => {
-  it("has a main navbar ordered Job leads, then Sync & cron, with separate job filters", () => {
+  it("has status views and Sync & cron navigation without the old priority tabs", () => {
     render(<PreviewLeadDashboard />)
     expect(screen.getByText("Senior AI Engineer")).toBeInTheDocument()
     const navigation = screen.getByRole("navigation", {
@@ -19,14 +19,13 @@ describe("Sync & cron navigation", () => {
     const links = within(navigation).getAllByRole("link")
     expect(links.map((link) => link.textContent?.trim())).toEqual([
       "Job leads",
+      "Applied jobs1",
+      "Not interested0",
       "Sync & cron",
     ])
     expect(links[0]).toHaveAttribute("aria-current", "page")
-    expect(
-      within(
-        screen.getByRole("tablist", { name: "Job lead views" }),
-      ).getAllByRole("tab"),
-    ).toHaveLength(2)
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Filter by read status" })).toBeInTheDocument()
     const syncLink = within(navigation).getByRole("link", {
       name: "Sync & cron",
     })
@@ -43,32 +42,27 @@ describe("Sync & cron navigation", () => {
     expect(screen.getByText("Senior AI Engineer")).toBeInTheDocument()
     expect(screen.queryByText("Scheduled cron health")).not.toBeInTheDocument()
   })
-  it("keeps keyboard All jobs and Priority navigation within the Job leads page", () => {
+  it("opens Applied jobs separately from the remaining job leads", () => {
     render(<PreviewLeadDashboard />)
-    fireEvent.keyDown(screen.getByRole("tab", { name: /all jobs/i }), {
-      key: "End",
-    })
-    const priorityTab = screen.getByRole("tab", { name: /priority/i })
-    expect(priorityTab).toHaveFocus()
-    expect(priorityTab).toHaveAttribute("aria-selected", "true")
-    fireEvent.keyDown(priorityTab, { key: "Home" })
-    expect(screen.getByRole("tab", { name: /all jobs/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    )
-  })
-  it("keeps the Priority selection when moving between navbar pages", () => {
-    render(<PreviewLeadDashboard />)
-    fireEvent.click(screen.getByRole("tab", { name: /priority/i }))
     expect(screen.queryByText("Lead Programmer")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("link", { name: "Sync & cron" }))
+    fireEvent.click(screen.getByRole("link", { name: /applied jobs/i }))
+    expect(window.location.hash).toBe("#applied-jobs")
+    expect(screen.getByText("Lead Programmer")).toBeInTheDocument()
+    expect(screen.queryByText("Senior AI Engineer")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("link", { name: "Job leads" }))
-    expect(screen.getByRole("tab", { name: /priority/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    )
     expect(screen.getByText("Senior AI Engineer")).toBeInTheDocument()
     expect(screen.queryByText("Lead Programmer")).not.toBeInTheDocument()
+  })
+  it("keeps the search when moving between job views and the sync page", () => {
+    render(<PreviewLeadDashboard />)
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search jobs" }), { target: { value: "AI Engineer" } })
+    expect(screen.queryByText("Senior Web Developer")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("link", { name: "Sync & cron" }))
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("link", { name: "Job leads" }))
+    expect(screen.getByRole("searchbox", { name: "Search jobs" })).toHaveValue("AI Engineer")
+    expect(screen.getByText("Senior AI Engineer")).toBeInTheDocument()
+    expect(screen.queryByText("Senior Web Developer")).not.toBeInTheDocument()
   })
   it("supports direct navigation to the sync page and browser back/forward events", () => {
     window.history.replaceState(null, "", "/#sync-cron")

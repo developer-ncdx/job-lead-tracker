@@ -14,6 +14,11 @@ type FetchOptions = {
 
 const PAGE_SIZE = 500
 
+type LeadTrackingUpdate = Pick<
+  Database["public"]["Tables"]["job_leads"]["Update"],
+  "is_read" | "applied_at" | "not_interested_at"
+>
+
 function postingTimestamp(lead: JobLead) {
   if (lead.source_timestamp_at) {
     const timestamp = Date.parse(lead.source_timestamp_at)
@@ -188,39 +193,64 @@ export function useJobLeads(
     [fetchLeads],
   )
 
-  const setPriority = useCallback(
-    async (leadId: string, isPriority: boolean) => {
-      let query = client
-        .from("job_leads")
-        .update({ is_priority: isPriority })
-        .eq("id", leadId)
+  const updateTracking = useCallback(
+    async (leadId: string, changes: LeadTrackingUpdate) => {
+      let query = client.from("job_leads").update(changes).eq("id", leadId)
+      query = userId ? query.eq("user_id", userId) : query.is("user_id", null)
 
-      if (userId) {
-        query = query.eq("user_id", userId)
-      }
-
-      const { data, error: priorityError } = await query
+      const { data, error: updateError } = await query
         .select("id")
         .maybeSingle()
-
-      if (priorityError) {
+      if (updateError) {
         throw new Error(
           getErrorMessage(
-            priorityError,
-            "We could not update this lead's priority. Please try again.",
+            updateError,
+            "We could not save this job's tracking status. Please try again.",
           ),
         )
       }
-
       if (!data) {
         throw new Error(
           "This lead is no longer available. Refresh to load the latest results.",
         )
       }
 
-      await fetchLeads({ background: true })
+      // Update only the changed fields, without downloading every lead again.
+      setLeads((current) =>
+        current.map((lead) =>
+          lead.id === leadId ? { ...lead, ...changes } : lead,
+        ),
+      )
     },
-    [client, fetchLeads, userId],
+    [client, userId],
+  )
+
+  const setRead = useCallback(
+    (leadId: string, isRead: boolean) =>
+      updateTracking(leadId, { is_read: isRead }),
+    [updateTracking],
+  )
+
+  const setApplied = useCallback(
+    (leadId: string, isApplied: boolean) =>
+      updateTracking(
+        leadId,
+        isApplied
+          ? { applied_at: new Date().toISOString(), not_interested_at: null, is_read: true }
+          : { applied_at: null },
+      ),
+    [updateTracking],
+  )
+
+  const setNotInterested = useCallback(
+    (leadId: string, isNotInterested: boolean) =>
+      updateTracking(
+        leadId,
+        isNotInterested
+          ? { not_interested_at: new Date().toISOString(), applied_at: null, is_read: true }
+          : { not_interested_at: null },
+      ),
+    [updateTracking],
   )
 
   return {
@@ -231,6 +261,8 @@ export function useJobLeads(
     realtimeWarning,
     lastSyncedAt,
     refresh,
-    setPriority,
+    setNotInterested,
+    setRead,
+    setApplied,
   }
 }

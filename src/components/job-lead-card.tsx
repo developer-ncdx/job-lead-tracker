@@ -2,9 +2,12 @@ import { useState } from "react"
 import {
   ArrowUpRight,
   CalendarDays,
+  Check,
+  Eye,
+  Mail,
   Link2,
   LoaderCircle,
-  Star,
+  ThumbsDown,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -12,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import type { JobLead } from "@/lib/database.types"
 import { getErrorMessage } from "@/lib/errors"
+import { cn } from "@/lib/utils"
 import {
   estimateRelativeDate,
   formatPhilippineDate,
@@ -20,7 +24,9 @@ import {
 
 type JobLeadCardProps = {
   lead: JobLead
-  onSetPriority: (leadId: string, isPriority: boolean) => Promise<void>
+  onSetNotInterested: (leadId: string, isNotInterested: boolean) => Promise<void>
+  onSetRead: (leadId: string, isRead: boolean) => Promise<void>
+  onSetApplied: (leadId: string, isApplied: boolean) => Promise<void>
   readOnly?: boolean
 }
 
@@ -34,10 +40,15 @@ function formatRelativePostedAt(value: string) {
 
 export function JobLeadCard({
   lead,
-  onSetPriority,
+  onSetNotInterested,
+  onSetRead,
+  onSetApplied,
   readOnly = false,
 }: JobLeadCardProps) {
-  const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
+  const [isUpdatingTracking, setIsUpdatingTracking] = useState(false)
+  const isRead = Boolean(lead.is_read)
+  const isApplied = Boolean(lead.applied_at)
+  const isNotInterested = Boolean(lead.not_interested_at)
   const postedAt = lead.source_timestamp_at
     ? formatPostedAt(lead.source_timestamp_at)
     : null
@@ -56,47 +67,103 @@ export function JobLeadCard({
       ? formatPhilippineDateTime(lead.first_seen_at)
       : null
 
-  async function handlePriority() {
-    setIsUpdatingPriority(true)
-
+  async function handleNotInterested() {
+    setIsUpdatingTracking(true)
     try {
-      await onSetPriority(lead.id, !lead.is_priority)
-      toast.success(
-        lead.is_priority
-          ? "Removed from priority"
-          : "Added to priority",
-      )
-    } catch (priorityError) {
+      await onSetNotInterested(lead.id, !isNotInterested)
+      toast.success(isNotInterested ? "Returned to job leads" : "Moved to not interested")
+    } catch (error) {
+      toast.error(getErrorMessage(error, "We could not save this job's interest status."))
+    } finally {
+      setIsUpdatingTracking(false)
+    }
+  }
+
+  async function handleRead(isRead: boolean) {
+    if (readOnly || isUpdatingTracking) return
+    setIsUpdatingTracking(true)
+    try {
+      await onSetRead(lead.id, isRead)
+    } catch (error) {
       toast.error(
-        getErrorMessage(
-          priorityError,
-          "We could not update this lead's priority.",
-        ),
+        getErrorMessage(error, "We could not save this job's read status."),
       )
     } finally {
-      setIsUpdatingPriority(false)
+      setIsUpdatingTracking(false)
+    }
+  }
+
+  async function handleApplied() {
+    setIsUpdatingTracking(true)
+    try {
+      await onSetApplied(lead.id, !isApplied)
+      toast.success(
+        isApplied ? "Removed from applied jobs" : "Added to applied jobs",
+      )
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, "We could not save this job's application status."),
+      )
+    } finally {
+      setIsUpdatingTracking(false)
     }
   }
 
   return (
-    <Card className="group gap-0 overflow-visible border-0 bg-gradient-to-br from-white via-white to-sky-50/65 py-0 shadow-[0_12px_35px_-24px_rgba(2,132,199,0.48)] ring-1 ring-sky-200/65 transition-[box-shadow,transform,ring-color] duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-24px_rgba(2,132,199,0.45)] hover:ring-sky-300/80">
-      <article>
-        <CardHeader className="grid-cols-[auto_1fr] gap-x-3 gap-y-2 px-4 py-4 sm:grid-cols-[auto_1fr_auto] sm:px-5">
-          <div className="row-span-3 flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-blue-100 text-sky-700 shadow-inner ring-1 ring-sky-200/70 transition-transform duration-200 group-hover:scale-105">
+    <Card className={cn(
+      "group gap-0 overflow-visible border-0 py-0 ring-1 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5",
+      isRead
+        ? "bg-slate-100/90 shadow-sm ring-slate-200 hover:ring-slate-300"
+        : "bg-gradient-to-br from-white via-white to-sky-50/65 shadow-[0_12px_35px_-24px_rgba(2,132,199,0.48)] ring-sky-200/65 hover:shadow-[0_20px_42px_-24px_rgba(2,132,199,0.45)] hover:ring-sky-300/80",
+    )}>
+      <article
+        aria-label={lead.title}
+        data-read-state={isRead ? "read" : "unread"}
+      >
+        <CardHeader className="grid-cols-[auto_1fr] gap-x-3 gap-y-2 px-4 py-4 sm:px-5">
+          <div className={cn(
+            "flex size-10 items-center justify-center rounded-xl shadow-inner ring-1 transition-transform duration-200 group-hover:scale-105",
+            isApplied ? "row-span-4" : "row-span-3",
+            isRead
+              ? "bg-slate-200/80 text-slate-600 ring-slate-300/70"
+              : "bg-gradient-to-br from-sky-100 to-blue-100 text-sky-700 ring-sky-200/70",
+          )}>
             <Link2 className="size-4.5" aria-hidden="true" />
           </div>
 
-          <CardTitle className="min-w-0 text-[15px] leading-6 font-semibold tracking-[-0.01em] sm:text-base">
-            {lead.title}
+          <CardTitle className={cn(
+            "min-w-0 text-[15px] leading-6 tracking-[-0.01em] sm:text-base",
+            isRead ? "font-medium text-slate-600" : "font-semibold",
+          )}>
+            <span>{lead.title}</span>
+            <span className={cn(
+              "ml-2 inline-flex rounded-full px-2 py-0.5 align-middle text-[10px] leading-4 font-medium",
+              isRead ? "bg-slate-200 text-slate-600" : "bg-sky-100 text-sky-800",
+            )}>
+              {isRead ? "Read" : "Unread"}
+            </span>
           </CardTitle>
 
           <Button
             asChild
             variant="link"
             size="sm"
-            className="col-start-2 row-start-2 h-auto w-fit px-0 text-sky-700 hover:text-blue-700"
+            className={cn(
+              "col-start-2 row-start-2 h-auto w-fit px-0",
+              isRead ? "text-slate-600 hover:text-slate-900" : "text-sky-700 hover:text-blue-700",
+            )}
           >
-            <a href={lead.url} target="_blank" rel="noopener noreferrer">
+            <a
+              href={lead.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (!isRead) void handleRead(true)
+              }}
+              onAuxClick={(event) => {
+                if (event.button === 1 && !isRead) void handleRead(true)
+              }}
+            >
               Open posting
               <ArrowUpRight data-icon="inline-end" />
             </a>
@@ -135,33 +202,57 @@ export function JobLeadCard({
             </span>
           )}
 
+          {lead.applied_at && (
+            <span className="col-start-2 flex items-center gap-1.5 text-xs text-slate-600">
+              <Check className="size-3.5" aria-hidden="true" />
+              <time dateTime={lead.applied_at}>
+                Applied {formatPhilippineDateTime(lead.applied_at)}
+              </time>
+            </span>
+          )}
+
           {!readOnly && (
-            <div className="col-span-2 mt-2 flex items-center justify-end gap-1 border-t pt-3 sm:col-span-1 sm:col-start-3 sm:row-span-3 sm:row-start-1 sm:mt-0 sm:border-0 sm:pt-0">
+            <div className="col-span-2 mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200/70 pt-3">
               <Button
-                variant={lead.is_priority ? "secondary" : "outline"}
+                variant="ghost"
                 size="sm"
-                onClick={() => void handlePriority()}
-                disabled={isUpdatingPriority}
-                aria-label={
-                  lead.is_priority
-                    ? `Remove ${lead.title} from priority`
-                    : `Add ${lead.title} to priority`
-                }
-                aria-pressed={lead.is_priority}
-                className={
-                  lead.is_priority
-                    ? "border-sky-200 bg-gradient-to-r from-sky-100 to-blue-100 text-sky-900 hover:from-sky-200 hover:to-blue-100"
-                    : "border-sky-200/80 bg-white/70 text-slate-600 hover:bg-sky-50 hover:text-sky-800"
-                }
+                disabled={isUpdatingTracking}
+                onClick={() => void handleRead(!isRead)}
+                aria-label={`Mark ${lead.title} as ${isRead ? "unread" : "read"}`}
+                className="text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
               >
-                {isUpdatingPriority ? (
-                  <LoaderCircle className="animate-spin" />
-                ) : (
-                  <Star
-                    className={lead.is_priority ? "fill-current" : ""}
-                  />
-                )}
-                {lead.is_priority ? "Priority" : "Set priority"}
+                {isRead ? <Mail /> : <Eye />}
+                Mark {isRead ? "unread" : "read"}
+              </Button>
+              <Button
+                variant={isNotInterested ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => void handleNotInterested()}
+                disabled={isUpdatingTracking}
+                aria-label={isNotInterested ? `Restore ${lead.title} from not interested` : `Mark ${lead.title} as not interested`}
+                aria-pressed={isNotInterested}
+                className="border-slate-200 bg-white/70 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              >
+                <ThumbsDown />
+                {isNotInterested ? "Not interested · Undo" : "Not interested"}
+              </Button>
+              <Button
+                variant={isApplied ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => void handleApplied()}
+                disabled={isUpdatingTracking}
+                aria-label={isApplied
+                  ? `Remove ${lead.title} from applied jobs`
+                  : `Mark ${lead.title} as applied`}
+                aria-pressed={isApplied}
+                className={isApplied
+                  ? "border-slate-300 bg-slate-200 text-slate-700 hover:bg-slate-300"
+                  : "border-sky-200 bg-white/70 text-sky-800 hover:bg-sky-50"}
+              >
+                {isUpdatingTracking
+                  ? <LoaderCircle className="animate-spin" />
+                  : <Check />}
+                {isApplied ? "Applied · Undo" : "Mark applied"}
               </Button>
             </div>
           )}

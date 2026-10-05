@@ -46,6 +46,9 @@ export type Database = {
           location: string | null
           is_remote: boolean | null
           is_priority: boolean
+          is_read: boolean
+          applied_at: string | null
+          not_interested_at: string | null
           source_timestamp_at: string | null
           source_timestamp_kind: JobLeadTimestampKind | null
           source_timestamp_label: string | null
@@ -66,6 +69,9 @@ export type Database = {
           location?: string | null
           is_remote?: boolean | null
           is_priority?: boolean
+          is_read?: boolean
+          applied_at?: string | null
+          not_interested_at?: string | null
           source_timestamp_at?: string | null
           source_timestamp_kind?: JobLeadTimestampKind | null
           source_timestamp_label?: string | null
@@ -86,6 +92,9 @@ export type Database = {
           location?: string | null
           is_remote?: boolean | null
           is_priority?: boolean
+          is_read?: boolean
+          applied_at?: string | null
+          not_interested_at?: string | null
           source_timestamp_at?: string | null
           source_timestamp_kind?: JobLeadTimestampKind | null
           source_timestamp_label?: string | null

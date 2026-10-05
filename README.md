@@ -2,18 +2,20 @@
 
 A small, private React app for reviewing job leads stored in Supabase. Leads
 are created by external sources; the UI reads them, keeps them synchronized,
-and lets the user sort them by date or save them to a priority list.
+and lets the user sort them by date, track applications, or dismiss jobs.
 
 ## What is included
 
-- Temporary no-login public priority mode for local development
+- Temporary no-login public mode for local development
 - Owner-scoped Row Level Security
 - Responsive lead cards with safe external links
 - Newest-first and oldest-first date sorting
-- Supabase-backed priority controls and a dedicated Priority tab
+- Instant search by job title, company, or source across each job view
+- Supabase-backed read status, Applied jobs, and Not interested views with Undo
 - Initial fetch, manual refresh, and Supabase Realtime refreshes
-- Main navbar with Job leads and Sync & cron pages; All jobs and Priority stay
-  within Job leads. The Sync & cron page shows scheduled health, last successful sync, latest
+- Main navbar with Job leads, Applied jobs, Not interested, and Sync & cron.
+  Applied and dismissed jobs are hidden from Job leads until restored with Undo.
+  The Sync & cron page shows scheduled health, last successful sync, latest
   attempt, expected next run, per-source outcomes, and recent run history
 - Server-side Greenhouse, Ashby, Lever, We Work Remotely, Remotive, Remote OK,
   Jobicy, Himalayas, Arbeitnow, Arbeitnow UK, The Muse, JobTech Sweden,
@@ -45,6 +47,8 @@ Open the Supabase SQL Editor and run these files in order:
 6. `supabase/migrations/20260929150440_add_source_timestamp_label.sql`
 7. `supabase/migrations/20261001120511_job_sync_health.sql`
 8. `supabase/migrations/20261001125847_streamline_sync_history_policies.sql`
+9. `supabase/migrations/20261005145001_job_lead_application_and_read_state.sql`
+10. `supabase/migrations/20261005150341_job_lead_not_interested_state.sql`
 
 The migrations create the `job_leads` table, source metadata, timestamp
 semantics, duplicate constraint, trigger, Realtime publication entry, grants,
@@ -55,9 +59,12 @@ allows server-side imports to use a null owner in this public mode. Migration
 The sync-health migration creates server-written `job_sync_runs` with read-only
 browser grants and owner-scoped RLS. It does not change job cards or lead metadata.
 The follow-up migration consolidates its read policies without changing access.
+The tracking migrations save read, application, and dismissal states. Applying
+clears a dismissal and dismissing clears an application. Undo restores the job
+without changing its read state. Imports preserve these user-managed fields.
 
-> **Warning:** public mode exposes every `job_leads` row and its priority
-> setting to anyone who has the project URL and browser key. Do not deploy the
+> **Warning:** public mode exposes every `job_leads` row and its tracking
+> settings to anyone who has the project URL and browser key. Do not deploy the
 > app publicly while migration `003` is active. Inserts remain server-only.
 
 If this repository is linked to a Supabase project with the Supabase CLI, you
@@ -448,6 +455,22 @@ If a request fails, the batch stops and retains completed keywords' results.
 An HTTP 410 (Gone) job detail page is recorded in `skippedJobs` and skipped
 without retries; the batch can continue to the other selected jobs. A search
 page error or access-denied/rate-limit response still stops the run.
+
+To add the saved results to the dashboard, run the separate one-time importer:
+
+```sh
+node scripts/poc/import-onlinejobs.mjs --dry-run
+node scripts/poc/import-onlinejobs.mjs
+# Optional: --input=/absolute/path/results.json
+```
+
+It reads the saved file and writes to the configured Supabase project, without
+requesting OnlineJobs.ph pages. It applies the current title and remote-only
+filters, skips existing OnlineJobs.ph job IDs across import sources, and leaves
+read, applied, and not-interested statuses untouched. New jobs use the
+`onlinejobsph` source, searchable as `OnlineJobs.ph`. Displayed update dates stay
+as update labels, without inventing a posting time. This importer is not part
+of the scheduled sync.
 
 Fields include title, URL, source ID, salary, employment type, weekly hours,
 description, and the displayed update date. The update date is not treated as

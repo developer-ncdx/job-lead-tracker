@@ -110,6 +110,8 @@ describe("job sync utilities", () => {
           description: "My saved notes",
           url: "https://example.com/my-saved-url",
           first_seen_at: "2026-09-20T08:00:00.000Z",
+          is_read: true,
+          applied_at: "2026-09-21T08:00:00.000Z",
         },
       ],
     ])
@@ -134,6 +136,9 @@ describe("job sync utilities", () => {
       first_seen_at: "2026-09-20T08:00:00.000Z",
       last_seen_at: "2026-09-24T01:00:00.000Z",
     })
+    expect(row).not.toHaveProperty("is_read")
+    expect(row).not.toHaveProperty("applied_at")
+    expect(row).not.toHaveProperty("not_interested_at")
   })
 
   it("preserves an existing source date when enrichment is unavailable", () => {
