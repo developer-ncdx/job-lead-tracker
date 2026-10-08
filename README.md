@@ -288,7 +288,7 @@ The production deployment includes a protected Vercel Function at
 hour. A run with one or more failed sources returns a failure response and
 sends a notification email containing the cron title and source errors.
 
-The same hourly endpoint includes OnlineJobs.ph and Smile & Hire when their
+The same hourly endpoint includes OnlineJobs.ph, Smile & Hire, and Crew Club when their
 entries in `job-sources.config.json` are enabled. OnlineJobs.ph reads one search
 page for each of the five configured keywords and up to six job detail pages
 per run. Smile & Hire reads `/jobs` and up to three matching job detail pages.
@@ -298,11 +298,19 @@ Both sources retain the existing role and remote-only filters. OnlineJobs.ph
 email alerts reuse the same saved job IDs; their additional page enrichment is
 disabled while the web adapter is enabled.
 
+Crew Club reads the public `/crew-jobs/` listing pages, with five-second spacing
+and a maximum of ten pages per run. It imports matching remote software/AI roles,
+skips filled roles, and preserves public dates, pay, schedule, and application
+links. Full descriptions require Crew Club sign-in, so imported descriptions
+contain public listing metadata only; employer names are left blank when absent.
+No signed-in pages are fetched. Set `crewclub.enabled` to false or add `crewclub`
+to `JOB_DISABLED_PUBLIC_FEEDS` to disable it.
+
 The crawler-state migration creates a server-only cache with no browser access.
 Each source has an overlap lease and a persisted cooldown. HTTP 401/403 pauses
 that site for 24 hours; HTTP 429 honors `Retry-After` or pauses for one hour.
 Requests are not retried within a run. Each site appears separately as
-`onlinejobsph:web` or `smileandhire:web` in Sync & cron history. Read, applied,
+`onlinejobsph:web`, `smileandhire:web`, or `crewclub:web` in Sync & cron history. Read, applied,
 and not-interested states are preserved when existing jobs are refreshed.
 
 Add these server-only variables under **Vercel → Project Settings →

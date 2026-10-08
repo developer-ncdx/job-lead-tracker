@@ -24,6 +24,7 @@ const sourceWebsites: Record<string, string> = {
   indeed: "indeed.com",
   onlinejobsph: "onlinejobs.ph",
   smileandhire: "smileandhire.com",
+  crewclub: "joincrewclub.com",
   upwork: "upwork.com",
 }
 

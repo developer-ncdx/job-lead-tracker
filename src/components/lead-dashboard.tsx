@@ -196,7 +196,9 @@ export function DashboardView({
             ? "OnlineJobs.ph"
             : lead.source?.startsWith("smileandhire")
               ? "Smile & Hire"
-              : lead.source?.replace(/-email$/, "").replaceAll("-", " ")
+              : lead.source === "crewclub"
+                ? "Crew Club"
+                : lead.source?.replace(/-email$/, "").replaceAll("-", " ")
           return [lead.title, lead.company, sourceLabel, lead.source].some((value) =>
             value?.toLowerCase().includes(normalizedQuery),
           )

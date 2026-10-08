@@ -54,6 +54,7 @@ describe("source selection", () => {
       "nomado24",
       "onlinejobsph",
       "smileandhire",
+      "crewclub",
     ]) {
       config[feed] = { enabled: feed === "arbeitnowuk" }
     }

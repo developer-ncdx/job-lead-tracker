@@ -192,5 +192,9 @@
     "enabled": true,
     "maxDetailPages": 3
   },
+  "crewclub": {
+    "enabled": true,
+    "maxListingPages": 10
+  },
   "pollIntervalMinutes": 60
 }

@@ -22,6 +22,7 @@ import { fetchWeWorkRemotelyJobs } from "./we-work-remotely.mjs"
 import { fetchWorkableJobs } from "./workable.mjs"
 import { fetchOnlineJobsPhJobs } from "./onlinejobsph.mjs"
 import { fetchSmileAndHireJobs } from "./smileandhire.mjs"
+import { fetchCrewClubJobs } from "./crewclub.mjs"
 import { captureCrawlResult } from "./crawl-state.mjs"
 
 const BOARD_ADAPTERS = Object.freeze({
@@ -51,6 +52,7 @@ const PUBLIC_FEED_ADAPTERS = Object.freeze({
 const WEB_CRAWL_ADAPTERS = Object.freeze({
   onlinejobsph: fetchOnlineJobsPhJobs,
   smileandhire: fetchSmileAndHireJobs,
+  crewclub: fetchCrewClubJobs,
 })
 
 async function captureSourceResult(source, name, fetchJobs) {
