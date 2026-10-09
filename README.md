@@ -13,6 +13,7 @@ and lets the user sort them by date, track applications, or dismiss jobs.
 - Instant search by job title, company, or source across each job view
 - Supabase-backed read status, Applied jobs, and Not interested views with Undo
 - Initial fetch, manual refresh, and Supabase Realtime refreshes
+
 - Main navbar with Job leads, Applied jobs, Not interested, and Sync & cron.
   Applied and dismissed jobs are hidden from Job leads until restored with Undo.
   The Sync & cron page shows scheduled health, last successful sync, latest
@@ -25,6 +26,13 @@ and lets the user sort them by date, track applications, or dismiss jobs.
 - Source-aware provider posting timestamps and relative date labels
 - Loading, empty, stale-data, configuration, and mutation error states
 - React, TypeScript, Vite, Tailwind CSS, and shadcn components
+
+Job lists download card metadata only, excluding stored descriptions. Realtime
+row changes are batched into one refresh after the update burst ends. Hourly
+syncs also read only the existing fields needed for reconciliation and omit
+existing descriptions from refresh writes, preserving notes in the database.
+New-job descriptions are still saved. These changes reduce future Supabase
+egress; they do not reset usage already counted in the current billing cycle.
 
 ## Prerequisites
 

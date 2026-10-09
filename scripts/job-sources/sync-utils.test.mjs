@@ -134,7 +134,6 @@ describe("job sync utilities", () => {
       source: "greenhouse",
       source_job_id: "job-1",
       title: "My saved title",
-      description: "My saved notes",
       url: "https://example.com/my-saved-url",
       company: "Acme",
       location: "Remote",
@@ -148,6 +147,7 @@ describe("job sync utilities", () => {
     expect(row).not.toHaveProperty("is_read")
     expect(row).not.toHaveProperty("applied_at")
     expect(row).not.toHaveProperty("not_interested_at")
+    expect(row).not.toHaveProperty("description")
   })
 
   it("preserves an existing source date when enrichment is unavailable", () => {

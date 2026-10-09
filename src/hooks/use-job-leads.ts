@@ -13,6 +13,9 @@ type FetchOptions = {
 }
 
 const PAGE_SIZE = 500
+// Cards and website counts never display descriptions. Keep the full text in
+// the database, but do not download it for every job on every refresh.
+const LEAD_LIST_COLUMNS = "id,user_id,title,url,source,source_job_id,company,location,is_remote,is_priority,is_read,applied_at,not_interested_at,source_timestamp_at,source_timestamp_kind,source_timestamp_label,first_seen_at,last_seen_at,created_at,updated_at" as const
 
 type LeadTrackingUpdate = Pick<
   Database["public"]["Tables"]["job_leads"]["Update"],
@@ -87,7 +90,7 @@ export function useJobLeads(
         for (let offset = 0; ; offset += PAGE_SIZE) {
           let query = client
             .from("job_leads")
-            .select("*")
+            .select(LEAD_LIST_COLUMNS)
 
           if (userId) {
             query = query.eq("user_id", userId)
@@ -110,7 +113,7 @@ export function useJobLeads(
             return
           }
 
-          loadedLeads.push(...(data ?? []))
+          loadedLeads.push(...(data ?? []).map(row => ({ ...row, description: "" })))
 
           if (!data || data.length < PAGE_SIZE) {
             break

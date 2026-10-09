@@ -43,7 +43,7 @@ export function extractCrewClubListings(html, expectedPage = 1) {
         ...metadata,
         categories.length && `Categories: ${categories.join(", ")}`,
       ].filter(Boolean).join("\n\n"),
-      sourceTimestampKind: date ? "posted" : null,
+      sourceTimestampKind: date ? "published" : null,
       sourceTimestampLabel: date ? `Posted ${date}` : null,
     }
     if (matchesTargetRole(job) && isRemoteOnlyJob(job)) jobs.push(job)

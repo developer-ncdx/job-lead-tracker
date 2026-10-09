@@ -11,7 +11,7 @@ describe("Crew Club public crawler", () => {
     const html = listing(card("web-dev", "Web Developer") + card("filled", "AI Engineer", true) + card("sales", "Sales Development Representative") + card("onsite", "Onsite Software Developer"))
     const { jobs } = extractCrewClubListings(html)
     expect(jobs).toHaveLength(1)
-    expect(jobs[0]).toMatchObject({ source: "crewclub", sourceJobId: "web-dev", company: null, isRemote: true, url: "https://joincrewclub.com/jobs/web-dev/", sourceTimestampLabel: "Posted Sep 4, 2026" })
+    expect(jobs[0]).toMatchObject({ source: "crewclub", sourceJobId: "web-dev", company: null, isRemote: true, url: "https://joincrewclub.com/jobs/web-dev/", sourceTimestampKind: "published", sourceTimestampLabel: "Posted Sep 4, 2026" })
     expect(jobs[0].description).toContain("₱80,000/month")
     expect(jobs[0].description).toContain("Sign in")
   })

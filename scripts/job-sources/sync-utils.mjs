@@ -141,7 +141,9 @@ export function buildSupabaseRows(
       source: existing?.source ?? job.source,
       source_job_id: existing?.source_job_id ?? job.sourceJobId,
       title: existing?.title ?? job.title,
-      description: existing?.description ?? job.description ?? "",
+      // Existing descriptions may contain user notes. Omit the column so the
+      // upsert preserves it without downloading and resending the full text.
+      ...(!existing && { description: job.description ?? "" }),
       url: existing?.url ?? job.url,
       company: job.company || null,
       location: job.location || null,

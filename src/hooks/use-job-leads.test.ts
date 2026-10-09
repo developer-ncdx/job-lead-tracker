@@ -92,6 +92,17 @@ function createClientMock(fetchError: { message: string } | null = null) {
 }
 
 describe("useJobLeads", () => {
+  it("fetches list metadata without downloading full job descriptions", async () => {
+    const { client, table } = createClientMock()
+    const { result } = renderHook(() => useJobLeads(client))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    const columns = table.select.mock.calls[0][0].split(",")
+    expect(columns).not.toContain("*")
+    expect(columns).not.toContain("description")
+    expect(columns).toEqual(expect.arrayContaining(["title", "url", "is_read", "applied_at", "not_interested_at", "source", "source_timestamp_at"]))
+    expect(result.current.leads[0].description).toBe("")
+    expect(result.current.leads[0].title).toBe(lead.title)
+  })
   it("downloads leads once after a burst of Realtime updates and includes the final change", async () => {
     const { client, range, channel } = createClientMock()
     const { result, unmount } = renderHook(() => useJobLeads(client))
@@ -290,6 +301,6 @@ describe("useJobLeads", () => {
     range.mockResolvedValue({ data: [saved], error: null })
     const { result } = renderHook(() => useJobLeads(client))
     await waitFor(() => expect(result.current.isLoading).toBe(false))
-    expect(result.current.leads[0]).toEqual(saved)
+    expect(result.current.leads[0]).toEqual({ ...saved, description: "" })
   })
 })

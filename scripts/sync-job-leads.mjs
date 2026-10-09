@@ -95,7 +95,7 @@ export async function loadExistingLeads(client, userId, jobs) {
     for (const jobBatch of chunk(sourceJobs, 100)) {
       let query = client
         .from("job_leads")
-        .select("*")
+        .select("source,source_job_id,title,url,first_seen_at,source_timestamp_at,source_timestamp_kind,source_timestamp_label")
         .in(
           "source_job_id",
           jobBatch.map((job) => job.sourceJobId),
@@ -128,8 +128,15 @@ export async function loadExistingLeads(client, userId, jobs) {
   return existingByIdentity
 }
 
-async function upsertLeads(client, rows, onWritten = () => {}) {
-  for (const rowBatch of chunk(rows, 100)) {
+export async function upsertLeads(client, rows, onWritten = () => {}) {
+  // PostgREST derives bulk-write columns from the union of all row keys.
+  // Separate new rows from refreshes so an omitted existing description is
+  // never included in the same request as a new job's description.
+  const batches = [
+    rows.filter(row => Object.hasOwn(row, "description")),
+    rows.filter(row => !Object.hasOwn(row, "description")),
+  ].flatMap(group => chunk(group, 100))
+  for (const rowBatch of batches) {
     let { error } = await client.from("job_leads").upsert(rowBatch, {
       onConflict: "user_id,source,source_job_id",
     })
