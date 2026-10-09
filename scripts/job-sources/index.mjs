@@ -2,10 +2,6 @@ import { fetchArbeitnowJobs } from "./arbeitnow.mjs"
 import { fetchAshbyJobs } from "./ashby.mjs"
 import { fetchAylaJobs } from "./ayla.mjs"
 import { fetchEuresJobs } from "./eures.mjs"
-import {
-  fetchEmailAlertJobs,
-  resolveEmailAlertEnvironment,
-} from "./email-alerts.mjs"
 import { fetchGreenhouseJobs } from "./greenhouse.mjs"
 import { fetchHimalayasJobs } from "./himalayas.mjs"
 import { fetchJobicyJobs } from "./jobicy.mjs"
@@ -168,40 +164,6 @@ export async function fetchConfiguredSourceResults(
           apiKey: environment.JOOBLE_API_KEY,
           fetchImpl,
         }),
-      ),
-    )
-  }
-
-  const emailSettings = resolveEmailAlertEnvironment(environment)
-
-  if (!emailSettings.enabled) {
-    results.push({
-      source: "email-alerts",
-      name: "email-alerts:gmail",
-      status: "skipped",
-      jobs: [],
-      durationMs: 0,
-      error: "JOB_ALERT_EMAIL_ENABLED is not true",
-    })
-  } else if (emailSettings.missing.length > 0) {
-    results.push({
-      source: "email-alerts",
-      name: "email-alerts:gmail",
-      status: "skipped",
-      jobs: [],
-      durationMs: 0,
-      error: `Missing ${emailSettings.missing.join(", ")}`,
-    })
-  } else {
-    results.push(
-      await captureSourceResult("email-alerts", "email-alerts:gmail", () =>
-        // The web adapter owns OnlineJobs page requests, their budget, and
-        // provider cooldowns. Email alerts still contribute their parsed jobs.
-        fetchEmailAlertJobs({
-          excludedEnrichmentSources: config.onlinejobsph?.enabled === true
-            ? ["onlinejobsph-email"]
-            : [],
-        }, { environment, fetchImpl }),
       ),
     )
   }

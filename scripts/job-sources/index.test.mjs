@@ -4,6 +4,25 @@ import { loadSourceConfig } from "./config.mjs"
 import { fetchConfiguredSourceResults } from "./index.mjs"
 
 describe("source selection", () => {
+  it("never scans Gmail even when old production settings still enable email alerts", async () => {
+    const config = await loadSourceConfig()
+    for (const [source, settings] of Object.entries(config)) {
+      if (Array.isArray(settings)) config[source] = []
+      else if (typeof settings === "object") config[source] = { enabled: false }
+    }
+    const environment = new Proxy({ JOB_ALERT_EMAIL_ENABLED: "true" }, {
+      get(target, property) {
+        if (String(property).startsWith("JOB_ALERT_")) throw new Error("Gmail configuration must never be accessed by sync")
+        return target[property]
+      },
+    })
+    const fetchImpl = vi.fn()
+    const results = await fetchConfiguredSourceResults(config, { environment, fetchImpl })
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(results.some(result => result.source === "email-alerts" || result.name === "email-alerts:gmail")).toBe(false)
+    expect(results.every(result => result.status === "skipped")).toBe(true)
+  })
+
   it("includes both configured web sources in the shared sync and honors their kill switch", async () => {
     const config = await loadSourceConfig()
     for (const [source, settings] of Object.entries(config)) {

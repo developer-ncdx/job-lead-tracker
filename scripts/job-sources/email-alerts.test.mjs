@@ -4,10 +4,8 @@ import {
   enrichEmailAlertPostedDates,
   extractExactPostedAt,
   extractProviderPostedLabel,
-  fetchEmailAlertJobs,
   identifyEmailAlertProvider,
   parseJobAlertEmail,
-  resolveEmailAlertEnvironment,
 } from "./email-alerts.mjs"
 import { matchesTargetRole } from "./role-filter.mjs"
 import { isRemoteOnlyJob } from "./sync-utils.mjs"
@@ -396,72 +394,6 @@ describe("email job alerts", () => {
     expect(jobs.map((job) => job.sourceJobId)).toEqual(["4473530223"])
   })
 
-  it("reads authenticated Google Alerts from Inbox without scanning Spam or changing mailbox state", async () => {
-    let mailbox = ""
-    const releases = []
-    const client = {
-      usable: true,
-      connect: vi.fn().mockResolvedValue(undefined),
-      list: vi.fn().mockResolvedValue([
-        { path: "INBOX", specialUse: "\\Inbox" },
-        { path: "[Gmail]/Spam", specialUse: "\\Junk" },
-      ]),
-      getMailboxLock: vi.fn(async (path) => {
-        mailbox = path
-        const release = vi.fn()
-        releases.push(release)
-        return { release }
-      }),
-      search: vi.fn(async () => mailbox === "INBOX" ? [42] : []),
-      fetch: vi.fn(async function* () {
-        yield {
-          uid: 42,
-          envelope: {
-            from: [{ address: "googlealerts-noreply@google.com" }],
-          },
-          source: Buffer.from([
-            "From: Google Alerts <googlealerts-noreply@google.com>",
-            "Subject: Google Alert - remote jobs",
-            `Authentication-Results: ${GOOGLE_AUTH}`,
-            "MIME-Version: 1.0",
-            "Content-Type: text/html; charset=utf-8",
-            "",
-            `<a href="${googleRedirect(
-              "https://www.linkedin.com/jobs/view/4473530223",
-            ).replace(/&/g, "&amp;")}">Software Engineer - Fully Remote</a>`,
-          ].join("\r\n")),
-        }
-      }),
-      logout: vi.fn().mockResolvedValue(undefined),
-    }
-
-    const jobs = await fetchEmailAlertJobs({}, {
-      environment: {
-        JOB_ALERT_EMAIL_USER: "person@example.com",
-        JOB_ALERT_EMAIL_APP_PASSWORD: "abcdefghijklmnop",
-        JOB_ALERT_ENRICH_POSTED_DATES: "false",
-      },
-      clientFactory: () => client,
-    })
-
-    expect(jobs).toHaveLength(1)
-    expect(jobs[0].sourceJobId).toBe("4473530223")
-    expect(client.getMailboxLock).toHaveBeenCalledWith(
-      "INBOX",
-      { readOnly: true },
-    )
-    expect(client.search).toHaveBeenCalledWith(
-      { since: expect.any(Date) },
-      { uid: true },
-    )
-    expect(client.list).not.toHaveBeenCalled()
-    expect(client.getMailboxLock).toHaveBeenCalledOnce()
-    expect(releases).toHaveLength(1)
-    expect(releases.every((release) => release.mock.calls.length === 1))
-      .toBe(true)
-    expect(client.logout).toHaveBeenCalledOnce()
-  })
-
   it("extracts and canonicalizes LinkedIn job links", () => {
     const jobs = parseJobAlertEmail({
       from: [{ address: "jobalerts-noreply@linkedin.com" }],
@@ -687,86 +619,5 @@ describe("email job alerts", () => {
         isRemote: true,
       }),
     ])
-  })
-
-  it("supports the existing environment variable names", () => {
-    expect(
-      resolveEmailAlertEnvironment({
-        JOB_ALERT_EMAIL_ENABLED: "true",
-        JOB_ALERT_EMAIL_USER: "person@example.com",
-        JOB_ALERT_EMAIL_APP_PASSWORD: "abcd efgh ijkl mnop",
-      }),
-    ).toMatchObject({
-      enabled: true,
-      host: "imap.gmail.com",
-      port: 993,
-      user: "person@example.com",
-      password: "abcdefghijklmnop",
-      missing: [],
-    })
-  })
-})
-
-describe("Gmail connection recovery", () => {
-  const environment = {
-    JOB_ALERT_EMAIL_USER: "person@example.com",
-    JOB_ALERT_EMAIL_APP_PASSWORD: "abcdefghijklmnop",
-    JOB_ALERT_ENRICH_POSTED_DATES: "false",
-  }
-  const message = {
-    uid: 1,
-    envelope: { from: [{ address: "jobalerts-noreply@linkedin.com" }] },
-    source: Buffer.from("From: LinkedIn <jobalerts-noreply@linkedin.com>\r\nSubject: Jobs\r\nContent-Type: text/html\r\n\r\n<a href=\"https://www.linkedin.com/jobs/view/4473530223\">Software Engineer - Remote</a>"),
-  }
-  function mockClient(error = null) {
-    const release = vi.fn()
-    return {
-      usable: true,
-      on: vi.fn(),
-      connect: vi.fn().mockResolvedValue(undefined),
-      list: vi.fn().mockResolvedValue([]),
-      getMailboxLock: vi.fn().mockResolvedValue({ release }),
-      search: vi.fn().mockResolvedValue([1]),
-      fetch: vi.fn(async function* () {
-        yield message
-        if (error) throw error
-      }),
-      release,
-      logout: vi.fn().mockResolvedValue(undefined),
-      close: vi.fn(),
-    }
-  }
-
-  it("reconnects once after a dropped read and discards the partial attempt to avoid duplicate jobs", async () => {
-    const dropped = mockClient(Object.assign(new Error("Connection not available"), { code: "NoConnection" }))
-    const recovered = mockClient()
-    const clientFactory = vi.fn().mockReturnValueOnce(dropped).mockReturnValueOnce(recovered)
-    const jobs = await fetchEmailAlertJobs({}, { environment, clientFactory })
-    expect(jobs).toHaveLength(1)
-    expect(jobs[0].sourceJobId).toBe("4473530223")
-    expect(clientFactory).toHaveBeenCalledTimes(2)
-    expect(clientFactory.mock.calls[0][0]).toMatchObject({ connectionTimeout: 20000, socketTimeout: 60000 })
-    for (const client of [dropped, recovered]) {
-      expect(client.release).toHaveBeenCalledOnce()
-      expect(client.logout).toHaveBeenCalledOnce()
-      expect(client.getMailboxLock).toHaveBeenCalledWith("INBOX", { readOnly: true })
-    }
-  })
-
-  it("stops after the second failed connection and identifies the failing stage", async () => {
-    const clientFactory = vi.fn(() => mockClient(Object.assign(new Error("Connection not available"), { code: "NoConnection" })))
-    await expect(fetchEmailAlertJobs({}, { environment, clientFactory })).rejects.toMatchObject({ code: "NoConnection", message: "Gmail IMAP failed while reading messages: Connection not available" })
-    expect(clientFactory).toHaveBeenCalledTimes(2)
-  })
-
-  it("does not retry rejected credentials or parsing errors", async () => {
-    const rejected = mockClient()
-    rejected.connect.mockRejectedValue(Object.assign(new Error("Rejected password"), { authenticationFailed: true }))
-    const clientFactory = vi.fn(() => rejected)
-    await expect(fetchEmailAlertJobs({}, { environment, clientFactory })).rejects.toThrow("Gmail IMAP authentication failed")
-    expect(clientFactory).toHaveBeenCalledOnce()
-    const broken = vi.fn(() => mockClient(new Error("Invalid message")))
-    await expect(fetchEmailAlertJobs({}, { environment, clientFactory: broken })).rejects.toThrow("Invalid message")
-    expect(broken).toHaveBeenCalledOnce()
   })
 })

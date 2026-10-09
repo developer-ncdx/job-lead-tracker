@@ -202,68 +202,13 @@ computer/process is active; use a server scheduler or hosted cron for an
 always-on deployment. Each provider controls when its upstream data refreshes,
 so polling more often does not guarantee newer listings.
 
-## Import job-alert emails
+## Email imports
 
-The sync can also read LinkedIn, Indeed, OnlineJobs.ph, and Upwork job-alert messages
-from Gmail over IMAP. It only reads recent messages, does not mark them as
-read, and sends extracted listings through the same target-role and
-remote-only filters as the public sources.
-
-It reads only the configured mailbox (Inbox by default), including authenticated
-Google Alerts delivered there. It does not scan Spam or enumerate other folders.
-Transient IMAP connection failures retry once with a fresh connection; rejected
-credentials are reported without retries. OnlineJobs.ph
-listings default to remote when a short email snippet omits work-location wording;
-explicit onsite or hybrid wording still fails the remote-only filter. Account setup
-and promotional messages without supported job links do not produce leads. These
-imports cover listings included in the received emails, not every job on each site.
-
-For Google Alerts, use separate queries for these two sites. OnlineJobs.ph does not
-need a remote-phrase requirement, and Upwork listings use both `/jobs` and
-`/freelance-jobs/apply` paths. Include automation terms explicitly, for example:
-
-```text
-site:onlinejobs.ph/jobseekers/job (developer OR "software engineer" OR programmer OR automation OR n8n)
-(site:upwork.com/jobs OR site:upwork.com/freelance-jobs/apply) (developer OR "software engineer" OR programmer OR automation OR n8n)
-```
-
-These are suggested account settings; changing this file does not update Google
-Alerts. Results still depend on Google's indexing and delivery, and the importer
-applies the target-role and remote-only filters to the received listings.
-
-When date enrichment is enabled, the importer accepts only an absolute
-`JobPosting.datePosted` timestamp published by the provider. LinkedIn relative
-labels such as `Just posted` or `Reposted 2 days ago` are stored and displayed
-verbatim instead of being converted into an invented timestamp. If neither is
-available, the UI clearly displays when the tracker first saw the listing.
-
-Configure a Gmail app password in `.env` (not the normal Google account
-password):
-
-```dotenv
-JOB_ALERT_EMAIL_ENABLED=true
-JOB_ALERT_IMAP_HOST=imap.gmail.com
-JOB_ALERT_IMAP_PORT=993
-JOB_ALERT_IMAP_SECURE=true
-JOB_ALERT_EMAIL_USER=your-gmail-address@gmail.com
-JOB_ALERT_EMAIL_APP_PASSWORD=your-16-character-app-password
-JOB_ALERT_MAILBOX=INBOX
-JOB_ALERT_LOOKBACK_DAYS=14
-JOB_ALERT_MAX_MESSAGES=100
-JOB_ALERT_ENRICH_POSTED_DATES=true
-```
-
-Test extraction locally without writing to Supabase:
-
-```bash
-npm run jobs:email:probe
-```
-
-An OnlineJobs.ph registration or confirmation message contains no job
-listings, so it correctly produces zero leads. The importer will begin
-extracting that source when actual OnlineJobs.ph job-alert messages arrive.
-
-## Run the sync with Vercel Cron
+Gmail mailbox scanning has been removed from both scheduled and local syncs.
+Existing email-imported jobs remain available in the tracker. The old
+`JOB_ALERT_EMAIL_ENABLED`, IMAP, mailbox, and message-limit settings no longer
+activate scanning. Job discovery now uses the configured APIs, feeds, and web
+crawlers. Gmail SMTP may still send optional cron failure notifications.
 
 ### Sync & cron page
 
@@ -307,8 +252,7 @@ per run. Smile & Hire reads `/jobs` and up to three matching job detail pages.
 Requests within each site are sequential with five-second spacing. Inspected
 details are cached for 24 hours, and new job IDs take precedence over refreshes.
 Both sources retain the existing role and remote-only filters. OnlineJobs.ph
-email alerts reuse the same saved job IDs; their additional page enrichment is
-disabled while the web adapter is enabled.
+web imports reuse the IDs of previously saved email-imported jobs.
 
 Crew Club reads the public `/crew-jobs/` listing pages, with five-second spacing
 and a maximum of ten pages per run. It imports matching remote software/AI roles,
@@ -346,16 +290,8 @@ JOOBLE_API_KEY=
 THE_MUSE_API_KEY=
 JOB_SOURCES_CONFIG=job-sources.config.json
 JOB_DISABLED_PUBLIC_FEEDS=
-JOB_ALERT_EMAIL_ENABLED=true
-JOB_ALERT_IMAP_HOST=imap.gmail.com
-JOB_ALERT_IMAP_PORT=993
-JOB_ALERT_IMAP_SECURE=true
 JOB_ALERT_EMAIL_USER=your-gmail-address@gmail.com
 JOB_ALERT_EMAIL_APP_PASSWORD=your-16-character-app-password
-JOB_ALERT_MAILBOX=INBOX
-JOB_ALERT_LOOKBACK_DAYS=14
-JOB_ALERT_MAX_MESSAGES=100
-JOB_ALERT_ENRICH_POSTED_DATES=true
 JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT=6
 JOB_SYNC_FAILURE_EMAIL_TO=noxpwr@gmail.com
 JOB_SYNC_SMTP_HOST=smtp.gmail.com
@@ -367,8 +303,8 @@ Do not prefix server secrets with `VITE_`. Vercel automatically sends
 `CRON_SECRET` as a bearer token when it invokes the endpoint, and the function
 rejects requests without the matching token.
 
-The failure notifier sends through Gmail SMTP using the same Gmail address and
-app password as the IMAP importer. `JOB_SYNC_FAILURE_EMAIL_TO` defaults to
+The optional failure notifier sends through Gmail SMTP using the address and
+app password in `JOB_ALERT_EMAIL_USER` and `JOB_ALERT_EMAIL_APP_PASSWORD`. `JOB_SYNC_FAILURE_EMAIL_TO` defaults to
 `JOB_ALERT_EMAIL_USER` when omitted.
 
 If a public feed blocks requests from Vercel, set
@@ -376,9 +312,8 @@ If a public feed blocks requests from Vercel, set
 feeds). For example, Production currently sets it to `arbeitnowuk` because
 that provider returns HTTP 403 to Vercel. Local syncs still use the feed.
 
-The email importer enriches dates for supported non-LinkedIn postings. LinkedIn
-pages are requested only by the bounded backfill, avoiding duplicate page
-requests for every scanned alert. Each hourly run revisits up to
+The bounded LinkedIn backfill can enrich dates on previously saved email-imported
+jobs without accessing Gmail. Each hourly run revisits up to
 `JOB_LINKEDIN_TIMESTAMP_BACKFILL_LIMIT` existing LinkedIn rows whose provider
 time is empty. The default is deliberately small to avoid LinkedIn request
 throttling. It stores only an exact timestamp or relative label returned by
@@ -426,7 +361,6 @@ npm run test:watch # Run tests in watch mode
 npm run build      # Type-check and create a production build
 npm run preview    # Preview the production build
 npm run jobs:probe # Test configured job APIs without database writes
-npm run jobs:email:probe # Test Gmail job alerts without database writes
 npm run jobs:sync:dry # Run ingestion without database writes
 npm run jobs:sync  # Fetch and upsert matching jobs
 npm run jobs:watch # Repeat sync at the configured interval
