@@ -50,6 +50,7 @@ Open the Supabase SQL Editor and run these files in order:
 9. `supabase/migrations/20261005145001_job_lead_application_and_read_state.sql`
 10. `supabase/migrations/20261005150341_job_lead_not_interested_state.sql`
 11. `supabase/migrations/20261005171708_job_crawl_state.sql`
+12. `supabase/migrations/20261009124240_allow_crewclub_crawl_state.sql`
 
 The migrations create the `job_leads` table, source metadata, timestamp
 semantics, duplicate constraint, trigger, Realtime publication entry, grants,
@@ -305,6 +306,13 @@ links. Full descriptions require Crew Club sign-in, so imported descriptions
 contain public listing metadata only; employer names are left blank when absent.
 No signed-in pages are fetched. Set `crewclub.enabled` to false or add `crewclub`
 to `JOB_DISABLED_PUBLIC_FEEDS` to disable it.
+
+Existing databases must also apply `20261009124240_allow_crewclub_crawl_state.sql`
+in the Supabase SQL Editor. Redeploying Vercel does not apply SQL migrations.
+Without it, the private crawler-state table rejects `crewclub` before any
+listing requests run. Run `supabase/tests/job_crawl_sources.sql` to verify all
+three sources are accepted while unsupported sources and browser writes remain
+blocked; test data is rolled back.
 
 The crawler-state migration creates a server-only cache with no browser access.
 Each source has an overlap lease and a persisted cooldown. HTTP 401/403 pauses
