@@ -48,7 +48,7 @@ export function WebsiteJobDrawer({ website, jobs, page, onPageChange, onCloseAut
               {website} jobs
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs">
-              {jobs.length.toLocaleString()} saved {jobs.length === 1 ? "job" : "jobs"} · Newest first
+              {jobs.length.toLocaleString()} saved {jobs.length === 1 ? "job" : "jobs"} · Latest acquired first
             </DialogDescription>
           </div>
           <DialogClose asChild>

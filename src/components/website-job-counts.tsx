@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from "react"
 import { ChevronRight, Globe2 } from "lucide-react"
 import { Dialog } from "@/components/ui/dialog"
 import { WebsiteJobDrawer } from "@/components/website-job-drawer"
-import { sortJobLeadsByTimestamp } from "@/hooks/use-job-leads"
 import type { JobLead } from "@/lib/database.types"
 import { countJobsByWebsite, websiteForJob } from "@/lib/website-job-counts"
 
@@ -12,6 +11,13 @@ export type WebsiteJobCountsProps = {
   error: string | null
 }
 
+function acquiredAt(lead: JobLead) {
+  const firstSeen = Date.parse(lead.first_seen_at)
+  if (Number.isFinite(firstSeen)) return firstSeen
+  const created = Date.parse(lead.created_at)
+  return Number.isFinite(created) ? created : 0
+}
+
 export function WebsiteJobCounts({ leads, isLoading, error }: WebsiteJobCountsProps) {
   const [selectedWebsite, setSelectedWebsite] = useState<string | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -19,7 +25,8 @@ export function WebsiteJobCounts({ leads, isLoading, error }: WebsiteJobCountsPr
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const counts = useMemo(() => countJobsByWebsite(leads), [leads])
   const selectedJobs = useMemo(
-    () => sortJobLeadsByTimestamp(leads.filter((lead) => websiteForJob(lead) === selectedWebsite)),
+    () => leads.filter((lead) => websiteForJob(lead) === selectedWebsite)
+      .sort((left, right) => acquiredAt(right) - acquiredAt(left) || left.id.localeCompare(right.id)),
     [leads, selectedWebsite],
   )
   return (

@@ -42,7 +42,7 @@ describe("website job drawers", () => {
     fireEvent.click(screen.getByRole("button", { name: "View 3 jobs from onlinejobs.ph" }))
 
     const drawer = screen.getByRole("dialog", { name: "onlinejobs.ph jobs" })
-    expect(within(drawer).getByText("3 saved jobs · Newest first")).toBeInTheDocument()
+    expect(within(drawer).getByText("3 saved jobs · Latest acquired first")).toBeInTheDocument()
     expect(within(drawer).getAllByRole("listitem")).toHaveLength(3)
     expect(within(drawer).getByText("Applied")).toBeInTheDocument()
     expect(within(drawer).getByText("Not interested")).toBeInTheDocument()
@@ -54,9 +54,10 @@ describe("website job drawers", () => {
     expect(posting).toHaveAttribute("rel", "noopener noreferrer")
   })
 
-  it("paginates newest jobs first and resets the page when opening another website or reopening", async () => {
+  it("paginates latest acquired jobs first and resets the page when opening another website or reopening", async () => {
     const jobs = Array.from({ length: 23 }, (_, index) => makeLead(String(index), {
       source_timestamp_at: new Date(Date.UTC(2026, 9, index + 1)).toISOString(),
+      first_seen_at: new Date(Date.UTC(2026, 9, index + 1)).toISOString(),
     }))
     jobs.push(makeLead("smile", { source: "smileandhire" }))
     render(<WebsiteJobCounts leads={jobs} isLoading={false} error={null} />)
@@ -88,6 +89,20 @@ describe("website job drawers", () => {
 
     fireEvent.click(onlineJobs)
     expect(within(screen.getByRole("dialog")).getByRole("status")).toHaveTextContent("1–20 of 23")
+  })
+
+  it("orders by first acquisition rather than provider dates or subsequent sync refreshes", () => {
+    const jobs = [
+      makeLead("older", { first_seen_at: "2026-10-05T00:00:00Z", source_timestamp_at: "2026-10-09T00:00:00Z", last_seen_at: "2026-10-10T00:00:00Z" }),
+      makeLead("newest", { first_seen_at: "2026-10-09T13:01:00Z", source_timestamp_at: null, source_timestamp_label: "Updated Oct 5, 2026" }),
+      makeLead("middle", { first_seen_at: "2026-10-08T00:00:00Z", source_timestamp_at: "2026-05-31T00:00:00Z" }),
+    ]
+    render(<WebsiteJobCounts leads={jobs} isLoading={false} error={null} />)
+    fireEvent.click(screen.getByRole("button", { name: "View 3 jobs from onlinejobs.ph" }))
+    const drawer = screen.getByRole("dialog")
+    expect(within(drawer).getAllByRole("link").map(link => link.textContent?.trim())).toEqual(["Job newest", "Job middle", "Job older"])
+    expect(within(drawer).getByText("Updated Oct 5, 2026")).toBeInTheDocument()
+    expect(jobs.map(job => job.id)).toEqual(["older", "newest", "middle"])
   })
 
   it("closes with Escape and returns keyboard focus to the website that opened it", async () => {
