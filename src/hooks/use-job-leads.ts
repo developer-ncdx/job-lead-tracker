@@ -155,6 +155,7 @@ export function useJobLeads(
 
   useEffect(() => {
     let disposed = false
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined
     const channel = client
       .channel(`job-leads:${userId ?? "public"}`)
       .on(
@@ -165,7 +166,14 @@ export function useJobLeads(
           table: "job_leads",
         },
         () => {
-          void fetchLeads({ background: true })
+          if (disposed) return
+          // Syncs update many rows in a burst. Reload once after the burst,
+          // instead of downloading the entire lead list for every row.
+          clearTimeout(refreshTimer)
+          refreshTimer = setTimeout(() => {
+            refreshTimer = undefined
+            void fetchLeads({ background: true })
+          }, 1000)
         },
       )
       .subscribe((status) => {
@@ -184,6 +192,7 @@ export function useJobLeads(
 
     return () => {
       disposed = true
+      clearTimeout(refreshTimer)
       void client.removeChannel(channel)
     }
   }, [client, fetchLeads, userId])

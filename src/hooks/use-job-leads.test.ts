@@ -87,10 +87,53 @@ function createClientMock(fetchError: { message: string } | null = null) {
     range,
     fetchBuilder,
     updateMutation,
+    channel,
   }
 }
 
 describe("useJobLeads", () => {
+  it("downloads leads once after a burst of Realtime updates and includes the final change", async () => {
+    const { client, range, channel } = createClientMock()
+    const { result, unmount } = renderHook(() => useJobLeads(client))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    const onChange = channel.on.mock.calls[0][2] as () => void
+    vi.useFakeTimers()
+    try {
+      range.mockResolvedValue({ data: [{ ...lead, title: "Updated after sync" }], error: null })
+      await act(async () => {
+        for (let index = 0; index < 100; index++) onChange()
+        await vi.advanceTimersByTimeAsync(900)
+        onChange()
+        await vi.advanceTimersByTimeAsync(900)
+      })
+      expect(range).toHaveBeenCalledTimes(1)
+      await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+      expect(range).toHaveBeenCalledTimes(2)
+      expect(result.current.leads[0].title).toBe("Updated after sync")
+    } finally {
+      unmount()
+      vi.useRealTimers()
+    }
+  })
+
+  it("cancels queued Realtime refreshes when the hook unmounts", async () => {
+    const { client, range, channel } = createClientMock()
+    const { result, unmount } = renderHook(() => useJobLeads(client))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    const onChange = channel.on.mock.calls[0][2] as () => void
+    vi.useFakeTimers()
+    try {
+      act(() => onChange())
+      unmount()
+      onChange()
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(range).toHaveBeenCalledTimes(1)
+      expect(client.removeChannel).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("sorts by the provider posting date, not discovery time", () => {
     const olderPosting: JobLead = {
       ...lead,
