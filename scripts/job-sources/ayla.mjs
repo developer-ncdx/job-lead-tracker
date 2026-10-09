@@ -17,6 +17,9 @@ const DEFAULT_QUERIES = Object.freeze([
   "automation engineer",
 ])
 const MAX_PAGE_SIZE = 100
+const REQUEST_TIMEOUT_MS = 30_000
+const FETCH_BUDGET_MS = 120_000
+const RETRY_DELAY_MS = 500
 
 export function normalizeAylaJob(rawJob) {
   const publishedAt = normalizeTimestamp(rawJob.postedDate)
@@ -44,9 +47,42 @@ export function normalizeAylaJob(rawJob) {
 
 export async function fetchAylaJobs(
   config = {},
-  { fetchImpl = fetch } = {},
+  {
+    fetchImpl = fetch,
+    wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now = Date.now,
+  } = {},
 ) {
   const jobsById = new Map()
+  const deadline = now() + FETCH_BUDGET_MS
+  let retriedTimeout = false
+
+  async function fetchPage(url, query, page) {
+    while (true) {
+      const remainingMs = deadline - now()
+      if (remainingMs <= 0) {
+        throw new Error(`Ayla request budget exhausted while fetching "${query}" page ${page}.`)
+      }
+      try {
+        return await fetchJson(url, {
+          fetchImpl,
+          timeoutMs: Math.min(REQUEST_TIMEOUT_MS, remainingMs),
+          headers: {
+            accept: "application/json",
+            "user-agent": "JobLeadTracker/1.0",
+          },
+        })
+      } catch (error) {
+        // One retry across the entire source keeps slow queries within the
+        // Vercel function budget. HTTP and payload errors are not retried.
+        if (error?.name !== "TimeoutError" || retriedTimeout || deadline - now() <= RETRY_DELAY_MS) {
+          throw new Error(`Ayla "${query}" page ${page}: ${error?.message ?? String(error)}`, { cause: error })
+        }
+        retriedTimeout = true
+        await wait(RETRY_DELAY_MS)
+      }
+    }
+  }
   const queries =
     Array.isArray(config.queries) && config.queries.length > 0
       ? config.queries
@@ -65,13 +101,7 @@ export async function fetchAylaJobs(
       url.searchParams.set("limit", String(pageSize))
       url.searchParams.set("sortBy", "newest")
 
-      const payload = await fetchJson(url, {
-        fetchImpl,
-        headers: {
-          accept: "application/json",
-          "user-agent": "JobLeadTracker/1.0",
-        },
-      })
+      const payload = await fetchPage(url, query, page)
 
       if (!Array.isArray(payload.jobs)) {
         throw new Error("Ayla returned an invalid jobs payload.")

@@ -242,7 +242,8 @@ that the scheduler will execute. All displayed times use Asia/Manila (PHT).
 
 The production deployment includes a protected Vercel Function at
 `/api/cron/sync-job-leads`. `vercel.json` invokes it at the start of every
-hour. A run with one or more failed sources returns a failure response and
+hour. Ayla retries a timed-out API request once, with a two-minute total source
+budget. A run with one or more failed sources returns a failure response and
 sends a notification email containing the cron title and source errors.
 
 The same hourly endpoint includes OnlineJobs.ph, Smile & Hire, and Crew Club when their
