@@ -9,8 +9,6 @@ import {
   inferRemote,
 } from "./shared.mjs"
 
-const GOOGLE_ALERTS_SENDER = "googlealerts-noreply@google.com"
-
 const PROVIDERS = Object.freeze([
   {
     source: "linkedin-email",
@@ -576,6 +574,21 @@ export function resolveEmailAlertEnvironment(environment = process.env) {
 
 export async function fetchEmailAlertJobs(
   config = {},
+  options = {},
+) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchEmailAlertJobsOnce(config, options)
+    } catch (error) {
+      const transient = ["NoConnection", "ECONNRESET", "EPIPE", "ETIMEDOUT", "EHOSTUNREACH"].includes(error?.code)
+      if (attempt === 0 && transient && !error?.authenticationFailed) continue
+      throw error
+    }
+  }
+}
+
+async function fetchEmailAlertJobsOnce(
+  config = {},
   { environment = process.env, fetchImpl = fetch, clientFactory = (options) => new ImapFlow(options) } = {},
 ) {
   const settings = resolveEmailAlertEnvironment(environment)
@@ -593,41 +606,40 @@ export async function fetchEmailAlertJobs(
       pass: settings.password,
     },
     logger: false,
+    connectionTimeout: 20_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 60_000,
+  })
+  let phase = "connecting"
+  let socketError = null
+  // ImapFlow emits socket errors as well as rejecting pending commands.
+  // Closing the broken session settles those commands and allows a fresh retry.
+  client.on?.("error", error => {
+    socketError = error
+    client.close()
   })
 
   try {
     await client.connect()
     const since = new Date(Date.now() - settings.lookbackDays * 86_400_000)
-    const folders = await client.list()
-    const spamMailbox = folders.find(
-      (folder) => folder.specialUse === "\\Junk",
-    )?.path
-    const mailboxes = [
-      { path: settings.mailbox, googleOnly: false },
-    ]
-
-    if (spamMailbox && spamMailbox !== settings.mailbox) {
-      mailboxes.push({ path: spamMailbox, googleOnly: true })
-    }
-
     const jobs = []
 
-    for (const mailbox of mailboxes) {
-      const lock = await client.getMailboxLock(mailbox.path, {
+    for (const mailbox of [settings.mailbox]) {
+      phase = "opening mailbox"
+      const lock = await client.getMailboxLock(mailbox, {
         readOnly: true,
       })
 
       try {
-        const search = mailbox.googleOnly
-          ? { since, from: GOOGLE_ALERTS_SENDER }
-          : { since }
-        const allUids = await client.search(search, { uid: true })
+        phase = "searching messages"
+        const allUids = await client.search({ since }, { uid: true })
         const uids = allUids.slice(-settings.maxMessages)
 
         if (uids.length === 0) {
           continue
         }
 
+        phase = "reading messages"
         for await (const message of client.fetch(
           uids,
           { envelope: true, source: true, uid: true },
@@ -639,10 +651,7 @@ export async function fetchEmailAlertJobs(
 
           const provider = identifyEmailAlertProvider(senderAddresses)
 
-          if (
-            !provider ||
-            (mailbox.googleOnly && provider !== "google-alerts")
-          ) {
+          if (!provider) {
             continue
           }
 
@@ -677,7 +686,11 @@ export async function fetchEmailAlertJobs(
       )
     }
 
-    throw error
+    const cause = socketError ?? error
+    throw Object.assign(new Error(`Gmail IMAP failed while ${phase}: ${cause.message}`), {
+      code: cause.code,
+      authenticationFailed: cause.authenticationFailed,
+    })
   } finally {
     if (client.usable) {
       await client.logout().catch(() => client.close())

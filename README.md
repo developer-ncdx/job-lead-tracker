@@ -209,7 +209,10 @@ from Gmail over IMAP. It only reads recent messages, does not mark them as
 read, and sends extracted listings through the same target-role and
 remote-only filters as the public sources.
 
-It also reads authenticated Google Alerts from Gmail's Spam folder. OnlineJobs.ph
+It reads only the configured mailbox (Inbox by default), including authenticated
+Google Alerts delivered there. It does not scan Spam or enumerate other folders.
+Transient IMAP connection failures retry once with a fresh connection; rejected
+credentials are reported without retries. OnlineJobs.ph
 listings default to remote when a short email snippet omits work-location wording;
 explicit onsite or hybrid wording still fails the remote-only filter. Account setup
 and promotional messages without supported job links do not produce leads. These

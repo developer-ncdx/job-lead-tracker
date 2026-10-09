@@ -396,7 +396,7 @@ describe("email job alerts", () => {
     expect(jobs.map((job) => job.sourceJobId)).toEqual(["4473530223"])
   })
 
-  it("reads authenticated Google Alerts from Spam without changing mailbox state", async () => {
+  it("reads authenticated Google Alerts from Inbox without scanning Spam or changing mailbox state", async () => {
     let mailbox = ""
     const releases = []
     const client = {
@@ -412,7 +412,7 @@ describe("email job alerts", () => {
         releases.push(release)
         return { release }
       }),
-      search: vi.fn(async () => mailbox === "INBOX" ? [] : [42]),
+      search: vi.fn(async () => mailbox === "INBOX" ? [42] : []),
       fetch: vi.fn(async function* () {
         yield {
           uid: 42,
@@ -447,14 +447,16 @@ describe("email job alerts", () => {
     expect(jobs).toHaveLength(1)
     expect(jobs[0].sourceJobId).toBe("4473530223")
     expect(client.getMailboxLock).toHaveBeenCalledWith(
-      "[Gmail]/Spam",
+      "INBOX",
       { readOnly: true },
     )
     expect(client.search).toHaveBeenCalledWith(
-      expect.objectContaining({ from: "googlealerts-noreply@google.com" }),
+      { since: expect.any(Date) },
       { uid: true },
     )
-    expect(releases).toHaveLength(2)
+    expect(client.list).not.toHaveBeenCalled()
+    expect(client.getMailboxLock).toHaveBeenCalledOnce()
+    expect(releases).toHaveLength(1)
     expect(releases.every((release) => release.mock.calls.length === 1))
       .toBe(true)
     expect(client.logout).toHaveBeenCalledOnce()
@@ -702,5 +704,69 @@ describe("email job alerts", () => {
       password: "abcdefghijklmnop",
       missing: [],
     })
+  })
+})
+
+describe("Gmail connection recovery", () => {
+  const environment = {
+    JOB_ALERT_EMAIL_USER: "person@example.com",
+    JOB_ALERT_EMAIL_APP_PASSWORD: "abcdefghijklmnop",
+    JOB_ALERT_ENRICH_POSTED_DATES: "false",
+  }
+  const message = {
+    uid: 1,
+    envelope: { from: [{ address: "jobalerts-noreply@linkedin.com" }] },
+    source: Buffer.from("From: LinkedIn <jobalerts-noreply@linkedin.com>\r\nSubject: Jobs\r\nContent-Type: text/html\r\n\r\n<a href=\"https://www.linkedin.com/jobs/view/4473530223\">Software Engineer - Remote</a>"),
+  }
+  function mockClient(error = null) {
+    const release = vi.fn()
+    return {
+      usable: true,
+      on: vi.fn(),
+      connect: vi.fn().mockResolvedValue(undefined),
+      list: vi.fn().mockResolvedValue([]),
+      getMailboxLock: vi.fn().mockResolvedValue({ release }),
+      search: vi.fn().mockResolvedValue([1]),
+      fetch: vi.fn(async function* () {
+        yield message
+        if (error) throw error
+      }),
+      release,
+      logout: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    }
+  }
+
+  it("reconnects once after a dropped read and discards the partial attempt to avoid duplicate jobs", async () => {
+    const dropped = mockClient(Object.assign(new Error("Connection not available"), { code: "NoConnection" }))
+    const recovered = mockClient()
+    const clientFactory = vi.fn().mockReturnValueOnce(dropped).mockReturnValueOnce(recovered)
+    const jobs = await fetchEmailAlertJobs({}, { environment, clientFactory })
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].sourceJobId).toBe("4473530223")
+    expect(clientFactory).toHaveBeenCalledTimes(2)
+    expect(clientFactory.mock.calls[0][0]).toMatchObject({ connectionTimeout: 20000, socketTimeout: 60000 })
+    for (const client of [dropped, recovered]) {
+      expect(client.release).toHaveBeenCalledOnce()
+      expect(client.logout).toHaveBeenCalledOnce()
+      expect(client.getMailboxLock).toHaveBeenCalledWith("INBOX", { readOnly: true })
+    }
+  })
+
+  it("stops after the second failed connection and identifies the failing stage", async () => {
+    const clientFactory = vi.fn(() => mockClient(Object.assign(new Error("Connection not available"), { code: "NoConnection" })))
+    await expect(fetchEmailAlertJobs({}, { environment, clientFactory })).rejects.toMatchObject({ code: "NoConnection", message: "Gmail IMAP failed while reading messages: Connection not available" })
+    expect(clientFactory).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not retry rejected credentials or parsing errors", async () => {
+    const rejected = mockClient()
+    rejected.connect.mockRejectedValue(Object.assign(new Error("Rejected password"), { authenticationFailed: true }))
+    const clientFactory = vi.fn(() => rejected)
+    await expect(fetchEmailAlertJobs({}, { environment, clientFactory })).rejects.toThrow("Gmail IMAP authentication failed")
+    expect(clientFactory).toHaveBeenCalledOnce()
+    const broken = vi.fn(() => mockClient(new Error("Invalid message")))
+    await expect(fetchEmailAlertJobs({}, { environment, clientFactory: broken })).rejects.toThrow("Invalid message")
+    expect(broken).toHaveBeenCalledOnce()
   })
 })
