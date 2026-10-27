@@ -46,10 +46,12 @@ export function normalizeWeWorkRemotelyJob(rawJob) {
 
 export async function fetchWeWorkRemotelyJobs(
   config = {},
-  { fetchImpl = fetch } = {},
+  { fetchImpl = fetch, wait } = {},
 ) {
   const xml = await fetchText(config.feed ?? DEFAULT_FEED, {
     fetchImpl,
+    retryTimeouts: true,
+    wait,
     headers: { "user-agent": "JobLeadTracker/1.0" },
   })
 

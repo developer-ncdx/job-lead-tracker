@@ -245,6 +245,9 @@ The production deployment includes a protected Vercel Function at
 hour. Ayla retries a timed-out API request once, with a two-minute total source
 budget. A run with one or more failed sources returns a failure response and
 sends a notification email containing the cron title and source errors.
+Greenhouse and We Work Remotely retry one timed-out GET after a short delay,
+with a fresh 30-second timeout for each attempt, including response-body reads.
+Persistent timeouts, HTTP errors, and invalid payloads remain visible failures.
 
 The same hourly endpoint includes OnlineJobs.ph, Smile & Hire, and Crew Club when their
 entries in `job-sources.config.json` are enabled. OnlineJobs.ph reads one search

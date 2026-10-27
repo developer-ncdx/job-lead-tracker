@@ -9,7 +9,7 @@ const HTML_ENTITIES = Object.freeze({
   quot: '"',
 })
 
-export async function fetchJson(
+async function fetchResource(
   url,
   {
     fetchImpl = fetch,
@@ -17,52 +17,38 @@ export async function fetchJson(
     method = "GET",
     body,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    retryTimeouts = false,
+    wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   } = {},
+  readBody,
 ) {
-  const response = await fetchImpl(url, {
-    method,
-    headers,
-    body,
-    signal: AbortSignal.timeout(timeoutMs),
-  })
-
-  if (!response.ok) {
-    const responseText = await response.text().catch(() => "")
-    const detail = responseText.trim().slice(0, 240)
-    throw new Error(
-      `${response.status} ${response.statusText}${
-        detail ? `: ${detail}` : ""
-      }`,
-    )
+  const attempts = retryTimeouts === true && method.toUpperCase() === "GET" ? 2 : 1
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const signal = AbortSignal.timeout(timeoutMs)
+    try {
+      const response = await fetchImpl(url, { method, headers, body, signal })
+      if (!response.ok) {
+        const responseText = await response.text().catch(() => "")
+        const detail = responseText.trim().slice(0, 240)
+        throw new Error(`${response.status} ${response.statusText}${detail ? `: ${detail}` : ""}`)
+      }
+      // Await the body too: a timeout can occur after headers have arrived.
+      return await readBody(response)
+    } catch (error) {
+      const timedOut = error?.name === "TimeoutError" ||
+        (signal.aborted && signal.reason?.name === "TimeoutError")
+      if (!timedOut || attempt + 1 === attempts) throw error
+      await wait(500)
+    }
   }
-
-  return response.json()
 }
 
-export async function fetchText(
-  url,
-  {
-    fetchImpl = fetch,
-    headers,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-  } = {},
-) {
-  const response = await fetchImpl(url, {
-    headers,
-    signal: AbortSignal.timeout(timeoutMs),
-  })
+export async function fetchJson(url, options = {}) {
+  return fetchResource(url, options, (response) => response.json())
+}
 
-  if (!response.ok) {
-    const responseText = await response.text().catch(() => "")
-    const detail = responseText.trim().slice(0, 240)
-    throw new Error(
-      `${response.status} ${response.statusText}${
-        detail ? `: ${detail}` : ""
-      }`,
-    )
-  }
-
-  return response.text()
+export async function fetchText(url, options = {}) {
+  return fetchResource(url, options, (response) => response.text())
 }
 
 export function cleanText(value) {

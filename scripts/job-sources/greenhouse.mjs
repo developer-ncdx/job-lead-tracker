@@ -37,7 +37,7 @@ export function normalizeGreenhouseJob(rawJob, boardConfig) {
 
 export async function fetchGreenhouseJobs(
   boardConfig,
-  { fetchImpl = fetch } = {},
+  { fetchImpl = fetch, wait } = {},
 ) {
   const board = extractBoardSlug(boardConfig.board, "greenhouse")
 
@@ -49,7 +49,7 @@ export async function fetchGreenhouseJobs(
     `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(
       board,
     )}/jobs?content=true`,
-    { fetchImpl },
+    { fetchImpl, retryTimeouts: true, wait },
   )
 
   if (!Array.isArray(payload.jobs)) {
