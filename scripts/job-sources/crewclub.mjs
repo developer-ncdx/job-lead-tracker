@@ -1,13 +1,45 @@
 import { parseHTML } from "linkedom"
 import { createCrawlReader } from "./crawl-pages.mjs"
+import { readCrewClubPayload } from "./crewclub-payload.mjs"
 import { matchesTargetRole } from "./role-filter.mjs"
+import { cleanText, normalizeTimestamp } from "./shared.mjs"
 import { isRemoteOnlyJob } from "./sync-utils.mjs"
 
 const ORIGIN = "https://joincrewclub.com"
 const text = element => element?.textContent.replace(/\s+/g, " ").trim() || null
 
+function normalizePayloadJob(raw) {
+  if (!raw || typeof raw.status !== "string") throw new Error("Crew Club job status is missing or changed")
+  if (raw.status !== "open") return null
+  if (typeof raw.slug !== "string" || !/^[a-z0-9][a-z0-9_-]*$/i.test(raw.slug) || typeof raw.title !== "string" || !cleanText(raw.title)) {
+    throw new Error("Crew Club listing title or job URL is missing or changed")
+  }
+  const publishedAt = normalizeTimestamp(raw.postedAt)
+  const job = {
+    source: "crewclub",
+    sourceJobId: raw.slug,
+    title: cleanText(raw.title),
+    url: `${ORIGIN}/jobs/${raw.slug}`,
+    company: cleanText(raw.employer) || null,
+    location: cleanText(raw.location) || "Remote — Philippines",
+    isRemote: true,
+    description: [
+      "Public Crew Club listing. Sign in to Crew Club to view the full job description and apply.",
+      ...[raw.employmentType, raw.payRange, raw.workSchedule, raw.category].map(cleanText),
+    ].filter(Boolean).join("\n\n"),
+    sourceTimestampAt: publishedAt,
+    sourceTimestampKind: publishedAt ? "published" : null,
+  }
+  return matchesTargetRole(job) && isRemoteOnlyJob(job) ? job : null
+}
+
 export function extractCrewClubListings(html, expectedPage = 1) {
   const { document } = parseHTML(html)
+  const payloadJobs = readCrewClubPayload(document)
+  if (payloadJobs) {
+    if (expectedPage !== 1) throw new Error("Crew Club listing pagination is missing or changed")
+    return { jobs: payloadJobs.map(normalizePayloadJob).filter(Boolean), maxPages: 1 }
+  }
   const page = document.querySelector(".cj-page")
   const pageNumber = Number(page?.getAttribute("data-cj-page"))
   const maxPages = Number(page?.getAttribute("data-cj-max-pages"))
@@ -22,7 +54,7 @@ export function extractCrewClubListings(html, expectedPage = 1) {
     const anchor = card.querySelector(".cj-card__title a[href]")
     const title = text(anchor)
     const url = new URL(anchor?.getAttribute("href") ?? "", ORIGIN)
-    if (!title || url.origin !== ORIGIN || !/^\/jobs\/[^/]+\/$/.test(url.pathname)) {
+    if (!title || url.origin !== ORIGIN || !/^\/jobs\/[^/]+\/?$/.test(url.pathname)) {
       throw new Error("Crew Club listing title or job URL is missing or changed")
     }
     const metadata = [...card.querySelectorAll(".cj-card__meta-row")].map(text).filter(Boolean)
@@ -60,7 +92,7 @@ export async function fetchCrewClubJobs(config = {}, { fetchImpl = fetch, wait }
   const jobs = new Map()
   let maxPages = 1
   for (let page = 1; page <= maxPages; page++) {
-    const url = `${ORIGIN}/crew-jobs/${page === 1 ? "" : `page/${page}/`}`
+    const url = `${ORIGIN}/crew-jobs${page === 1 ? "" : `/page/${page}`}`
     const result = extractCrewClubListings(await read(url), page)
     if (result.maxPages > pageLimit) throw new Error(`Crew Club has ${result.maxPages} listing pages, exceeding the configured limit ${pageLimit}`)
     maxPages = result.maxPages

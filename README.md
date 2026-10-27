@@ -255,8 +255,11 @@ details are cached for 24 hours, and new job IDs take precedence over refreshes.
 Both sources retain the existing role and remote-only filters. OnlineJobs.ph
 web imports reuse the IDs of previously saved email-imported jobs.
 
-Crew Club reads the public `/crew-jobs/` listing pages, with five-second spacing
-and a maximum of ten pages per run. It imports matching remote software/AI roles,
+Crew Club reads the public `/crew-jobs` page at its canonical URL. Its Next.js
+page payload includes the complete board behind “Load More Roles”, so all listings
+are inspected in one request without executing page scripts. Legacy listing pages
+remain supported with five-second spacing and a maximum of ten pages per run.
+It imports matching remote software/AI roles,
 skips filled roles, and preserves public dates, pay, schedule, and application
 links. Full descriptions require Crew Club sign-in, so imported descriptions
 contain public listing metadata only; employer names are left blank when absent.
